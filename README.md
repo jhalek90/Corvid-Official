@@ -2,6 +2,8 @@
 
 **A desktop home for your Claude Code agents: hand them tasks, watch them work, and talk to them on one board.**
 
+Discord: https://discord.gg/A9TBUnq6p3 
+
 Corvid is a personal development environment for one software engineer who uses
 [Claude Code](https://code.claude.com/docs/en/overview), on Windows, macOS or Linux. It is not one tool meant to work
 the same for everyone: you run your own copy from source and reshape it with settings, extensions, and agents that
