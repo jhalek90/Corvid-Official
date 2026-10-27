@@ -1,0 +1,250 @@
+/* The safety scan on an extension's page (#96). */
+
+.xscan-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.xscan-model {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-3);
+}
+.xscan-state {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 10px 12px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius);
+  background: var(--bg-2);
+  color: var(--text-2);
+  font-size: 13px;
+}
+.xscan-state > span {
+  flex: 1;
+  min-width: 200px;
+}
+.xscan-state.bad {
+  border-color: var(--danger-soft);
+  color: var(--text);
+}
+.xscan-state.bad svg {
+  color: var(--danger);
+}
+.xscan-confirm {
+  margin-top: 8px;
+  padding: 12px;
+  border-color: var(--accent-line);
+  font-size: 13px;
+}
+.xscan-confirm p {
+  margin: 0 0 8px;
+  color: var(--text-2);
+}
+.xscan-over {
+  color: var(--warn) !important;
+}
+.xscan-row {
+  display: flex;
+  gap: 8px;
+}
+.xscan-report h4 {
+  margin: 14px 0 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.xscan-verdict-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+  font-size: 12px;
+}
+.xscan-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid var(--line-2);
+}
+.xscan-badge.v-clear {
+  color: var(--accent);
+  border-color: var(--accent-line);
+  background: var(--accent-soft);
+}
+.xscan-badge.v-warn {
+  color: var(--warn);
+  border-color: var(--warn);
+  background: var(--warn-soft);
+}
+.xscan-badge.v-block {
+  color: var(--danger);
+  border-color: var(--danger);
+  background: var(--danger-soft);
+}
+.xscan-disclaimer {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--text-3);
+}
+.xscan-summary {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--text);
+  font-size: 13px;
+}
+.xscan-list {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 13px;
+  color: var(--text-2);
+}
+.xscan-caps {
+  display: grid;
+  grid-template-columns: minmax(90px, auto) 1fr 1fr;
+  gap: 4px 12px;
+  font-size: 13px;
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+}
+.xscan-caps-h {
+  grid-column: span 1;
+  font-size: 11px;
+  color: var(--text-4);
+}
+.xscan-caps-h:first-child {
+  grid-column: 2;
+}
+.xscan-caps-label {
+  color: var(--text-3);
+}
+.xscan .extra {
+  color: var(--warn);
+  font-weight: 600;
+}
+.xscan-flag {
+  margin: 6px 0;
+  padding: 8px 10px;
+  border: 1px solid var(--line-2);
+  border-left: 3px solid var(--warn);
+  border-radius: var(--radius-sm);
+  background: var(--bg-2);
+  font-size: 13px;
+}
+.xscan-flag.blocks {
+  border-left-color: var(--danger);
+}
+.xscan-flag-h {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  color: var(--text);
+}
+.xscan-cat.blocks {
+  color: var(--danger);
+  border-color: var(--danger-soft);
+}
+.xscan-src {
+  margin-left: auto;
+  font-size: 11px;
+}
+.xscan-lines {
+  margin: 6px 0 0;
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-1);
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text-2);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.xscan-lines .ln {
+  display: inline-block;
+  min-width: 34px;
+  color: var(--text-4);
+  user-select: none;
+}
+.xscan-found dd {
+  overflow-wrap: anywhere;
+}
+.xscan-gate {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 12px 0 0;
+  font-size: 13px;
+  color: var(--text-2);
+}
+.xscan-gate.ok {
+  color: var(--accent);
+}
+.xscan-gate.bad {
+  color: var(--danger);
+}
+.xscan-gate svg {
+  flex: none;
+  margin-top: 2px;
+}
+.xscan-type {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+  font-size: 13px;
+  color: var(--text-2);
+}
+.xscan-type > span {
+  flex-basis: 100%;
+}
+.xscan-type .input {
+  flex: 1;
+  min-width: 160px;
+  max-width: 280px;
+}
+.xscan-type code {
+  font-family: var(--mono);
+  color: var(--text);
+}
+.xscan-type.warnbox {
+  padding: 10px;
+  border: 1px solid var(--warn);
+  border-radius: var(--radius);
+  background: var(--warn-soft);
+}
+.xscan-skip {
+  margin-top: 8px;
+}
+.xscan-note {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--warn);
+}
+@media (max-width: 640px) {
+  .xscan-caps {
+    grid-template-columns: 1fr 1fr;
+  }
+  .xscan-caps-label {
+    grid-column: span 2;
+    margin-top: 4px;
+  }
+  .xscan-caps-h:first-child {
+    grid-column: 1;
+  }
+}

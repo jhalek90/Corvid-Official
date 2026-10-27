@@ -1,0 +1,87 @@
+/* Verify and share on an extension's page (#101). Colours come from the theme's tokens, so both themes work. */
+
+.vfy p {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+  margin: 4px 0;
+  overflow-wrap: anywhere;
+}
+.vfy p > svg {
+  flex: none;
+  margin-top: 3px;
+}
+.vfy-ok p:first-child {
+  color: var(--ok);
+}
+.vfy-run {
+  color: var(--accent);
+}
+.vfy-fail,
+.vfy-why,
+.vfy-leaks.bad {
+  margin: 8px 0;
+  padding: 8px 12px;
+  border: 1px solid var(--danger);
+  border-radius: var(--radius);
+  background: var(--danger-soft);
+}
+.vfy-why {
+  border-color: var(--warn);
+  background: var(--warn-soft);
+}
+.vfy-fail ul,
+.vfy-leaks ul,
+.vfy-shares ul,
+.vfy-fail details ul {
+  margin: 4px 0 6px 18px;
+  padding: 0;
+  overflow-wrap: anywhere;
+}
+.vfy-block p,
+.vfy-warn {
+  color: var(--warn);
+}
+.vfy-dialog {
+  width: min(640px, 94vw);
+  max-height: 84vh;
+  overflow-y: auto;
+}
+.vfy-dialog h3 {
+  justify-content: space-between;
+}
+.vfy-bases {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0 0 12px;
+  padding: 8px 12px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius);
+}
+.vfy-bases label {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  overflow-wrap: anywhere;
+}
+.vfy-bases label.off {
+  color: var(--text-3);
+}
+.vfy-summary dd {
+  overflow-wrap: anywhere;
+}
+.vfy-leaks {
+  margin: 10px 0;
+}
+.vfy-leaks:not(.bad) p {
+  color: var(--ok);
+}
+.vfy-leaks label {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.vfy-dialog .actions {
+  flex-wrap: wrap;
+}

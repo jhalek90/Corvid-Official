@@ -1,0 +1,210 @@
+/* Send a request (#105): the request builder and the response view, in the Connections tab. */
+
+.dialog.sr-panel {
+  width: min(980px, 96vw);
+  max-height: 86vh;
+  overflow: auto;
+  margin-top: 5vh;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.dialog.sr-panel p {
+  margin: 0;
+}
+.sr-conn {
+  color: var(--text-2);
+  font-weight: 400;
+}
+.sr-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+.sr-line {
+  flex-wrap: nowrap;
+}
+.sr-method {
+  flex: none;
+}
+.sr-base {
+  color: var(--text-3);
+  max-width: 40%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sr-path {
+  flex: 1;
+  min-width: 0;
+}
+.sr-pairs,
+.sr-body-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.sr-pair input {
+  flex: 1;
+  min-width: 0;
+}
+.sr-pair .conn-small {
+  flex-basis: 100%;
+}
+.sr-body-edit textarea {
+  width: 100%;
+  resize: vertical;
+}
+.sr-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
+}
+.sr-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 8px 10px;
+  border-radius: var(--radius);
+  background: var(--danger-soft);
+  color: var(--text);
+  font-size: 12px;
+}
+.sr-response {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+  min-width: 0;
+}
+.sr-status {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: 12px;
+}
+.sr-code {
+  font-weight: 600;
+  font-size: 14px;
+}
+.sr-code.ok {
+  color: var(--accent);
+}
+.sr-code.bad {
+  color: var(--danger);
+}
+.sr-url {
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.sr-hidden,
+.sr-warn {
+  padding: 6px 10px;
+  border-radius: var(--radius);
+  background: var(--warn-soft);
+  color: var(--text);
+}
+.sr-headers .conn-facts {
+  padding: 6px 0 0 12px;
+}
+.sr-binary {
+  padding: 10px 12px;
+  border: 1px dashed var(--line-2);
+  border-radius: var(--radius);
+  color: var(--text-2);
+  font-size: 12px;
+}
+.sr-search {
+  width: 200px;
+  max-width: 100%;
+}
+.sr-text,
+.sr-tree,
+.sr-hits,
+.sr-shown {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg-2);
+  font-size: 12px;
+  max-height: 46vh;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.sr-shown {
+  max-height: 34vh;
+  margin-bottom: 12px;
+}
+.sr-tree {
+  white-space: normal;
+}
+.sr-children {
+  padding-left: 16px;
+  border-left: 1px solid var(--line);
+  margin-left: 5px;
+}
+.sr-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  padding: 1px 0;
+  cursor: pointer;
+}
+.sr-leaf {
+  padding: 1px 0 1px 15px;
+  overflow-wrap: anywhere;
+}
+.sr-k {
+  color: var(--text-2);
+}
+.sr-string {
+  color: var(--accent);
+}
+.sr-number,
+.sr-boolean {
+  color: var(--warn);
+}
+.sr-null {
+  color: var(--text-3);
+}
+.sr-hit {
+  display: flex;
+  gap: 10px;
+}
+.sr-ln {
+  color: var(--text-4);
+  min-width: 3em;
+  text-align: right;
+  flex: none;
+}
+.sr-hits mark {
+  background: var(--accent-soft);
+  color: var(--text);
+  border-radius: 2px;
+}
+.dialog.sr-confirm {
+  width: min(640px, 94vw);
+}
+
+@media (max-width: 640px) {
+  .sr-line {
+    flex-wrap: wrap;
+  }
+  .sr-base {
+    max-width: 100%;
+    flex-basis: 100%;
+    order: -1;
+  }
+}

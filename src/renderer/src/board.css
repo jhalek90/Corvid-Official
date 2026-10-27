@@ -1,0 +1,1326 @@
+/* ---------- message board: beside the agent cards, a strip beside an open terminal ---------- */
+
+.mboard {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  /* the chat keeps a readable column on a wide pane */
+  --mb-gutter: max(16px, calc((100% - 820px) / 2));
+  container: mboard / inline-size;
+}
+/* a narrow board (opened out beside a terminal, a small window): smaller faces, the same layout */
+@container mboard (max-width: 480px) {
+  .mb-list {
+    --av-chat: 32px;
+  }
+  .mb-msg {
+    gap: 8px;
+  }
+  .mb-body {
+    padding-right: 0;
+  }
+  .mb-msg.user .mb-body {
+    padding-left: 32px;
+  }
+}
+.mboard[hidden] {
+  display: none;
+}
+/* opened out beside a terminal */
+.mboard.panel {
+  flex: none;
+  width: 360px;
+  border-left: 1px solid var(--line);
+  background: var(--bg-1);
+}
+
+/* No title bar (#125): the board opens on the Corvid strip. This slim row holds only the narrow window's Cards / Board
+   toggle and the fold button, and isn't there when neither applies. */
+.mb-bar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 8px 12px 2px;
+}
+.mb-confirm {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px var(--mb-gutter);
+  font-size: 12px;
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--danger) 6%, var(--bg-1));
+}
+.mb-confirm span {
+  flex: 1;
+  min-width: 0;
+}
+
+.mb-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 6px var(--mb-gutter) 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.mboard.panel .mb-list {
+  padding: 6px 10px 12px;
+}
+.mb-empty {
+  margin: auto;
+  max-width: 360px;
+  text-align: center;
+  font-size: 12.5px;
+  color: var(--text-2);
+}
+.mb-empty p {
+  margin: 6px 0 0;
+}
+
+/* only the newest messages are drawn (#181): older ones on request */
+.mb-earlier {
+  flex: none;
+  align-self: center;
+  margin: 6px 0 4px;
+  padding: 3px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--text-3);
+  font: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
+}
+.mb-earlier:hover,
+.mb-earlier:focus-visible {
+  color: var(--text);
+  border-color: var(--accent-line);
+}
+
+/* day separators, and where the unread messages start */
+.mb-sep {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 12px 0 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-4);
+}
+.mb-sep::before,
+.mb-sep::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+.mb-sep.new {
+  margin-top: 4px;
+  color: var(--accent);
+}
+.mb-sep.new::before,
+.mb-sep.new::after {
+  background: var(--accent-line);
+}
+
+/* ---------- a message ---------- */
+
+/* A chat row: the face in a column of its own, then the name and time over the message in a soft
+   bubble. A run from the same author shows the face and name once, on the first, and stacks the
+   rest tightly under it. The user's own are mirrored: on the right, in the accent tint. */
+.mb-msg {
+  flex: none;
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+  margin-top: 10px;
+}
+.mb-msg.cont,
+.mb-sep + .mb-msg {
+  margin-top: 0;
+}
+.mb-face {
+  flex: none;
+  width: var(--av-chat);
+  display: flex;
+  justify-content: center;
+}
+/* a run's later messages show their time in the empty face column, on hover */
+.mb-gtime {
+  padding-top: 8px;
+  font-size: 10.5px;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.mb-msg:hover .mb-gtime,
+.mb-msg:focus-within .mb-gtime {
+  opacity: 1;
+}
+.mb-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  /* the two sides of the conversation each keep a little room on the far side */
+  padding-right: min(8%, 48px);
+}
+.mb-bubble {
+  max-width: 100%;
+  min-width: 0;
+  padding: 6px 12px 7px;
+  border-radius: var(--radius-lg);
+  border: 1px solid transparent;
+  background: var(--bg-2);
+  transition: background-color 0.3s;
+}
+/* the first of a run tucks its corner towards the face */
+.mb-msg:not(.cont) .mb-bubble {
+  border-top-left-radius: var(--radius-sm);
+}
+.mb-who.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+/* the user's own: on the right, tinted */
+.mb-msg.user {
+  flex-direction: row-reverse;
+}
+.mb-msg.user .mb-body {
+  align-items: flex-end;
+  padding-right: 0;
+  padding-left: min(15%, 96px);
+}
+.mb-msg.user .mb-bubble {
+  background: var(--accent-soft);
+  border-color: var(--accent-line);
+}
+.mb-msg.user:not(.cont) .mb-bubble {
+  border-top-left-radius: var(--radius-lg);
+  border-top-right-radius: var(--radius-sm);
+}
+/* The app's own notices about an agent ("Dashboard notice"): a small muted line in the middle, with no
+   face or bubble, so they never look like Corvid the assistant or anyone else talking */
+.mb-msg.notice {
+  justify-content: center;
+  margin: 10px 0 2px;
+}
+.mb-msg.notice .mb-body {
+  flex: 0 1 auto;
+  align-items: center;
+  gap: 1px;
+  padding: 3px 12px;
+  border-radius: var(--radius);
+  text-align: center;
+  transition: background-color 0.3s;
+}
+.mb-msg.notice .mb-meta {
+  justify-content: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-4);
+}
+.mb-msg.notice .mb-who {
+  font-weight: 600;
+  color: var(--text-3);
+}
+.mb-msg.notice .mb-text {
+  font-size: 12px;
+  color: var(--text-3);
+}
+.mb-msg.notice.flash .mb-body {
+  background: var(--bg-3);
+}
+/* addressed to the user: a bar on the bubble's left; amber when it's a question */
+.mb-msg.to-you .mb-bubble {
+  border-left: 2px solid var(--accent);
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+  background: color-mix(in srgb, var(--accent) 7%, var(--bg-2));
+}
+.mb-msg.to-you.question .mb-bubble {
+  border-left-color: var(--warn);
+  background: color-mix(in srgb, var(--warn) 8%, var(--bg-2));
+}
+.mb-msg.flash .mb-bubble {
+  background: var(--bg-3);
+}
+
+.mb-meta {
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: 18px;
+  padding: 0 2px;
+  font-size: 11.5px;
+  color: var(--text-3);
+}
+/* the name keeps its room; the "to …" label gives way first */
+.mb-who {
+  flex: 0 1 auto;
+  max-width: 70%;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mb-msg.user .mb-meta {
+  justify-content: flex-end;
+}
+.mb-msg.user .mb-to {
+  flex: 0 1 auto;
+}
+.mb-msg.user .mb-who {
+  color: var(--accent);
+}
+.mb-time {
+  flex: none;
+  color: var(--text-4);
+  font-variant-numeric: tabular-nums;
+}
+.mb-tag.q {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--warn);
+  font-weight: 600;
+}
+/* agent pings (#195): a small tag per target, so the user can follow who pinged and woke whom */
+.mb-tag.ping {
+  /* shrinks before the author's name does */
+  flex: 0 4 auto;
+  min-width: 3em;
+  max-width: 11em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0 5px;
+  border-radius: 4px;
+  font-size: 11px;
+  border: 1px solid var(--border);
+  color: var(--text-3);
+}
+.mb-tag.ping.wake {
+  color: var(--warn);
+  border-color: var(--warn);
+}
+.mb-tag.ping.refused {
+  text-decoration: line-through;
+  opacity: 0.75;
+}
+/* /discuss (#200): the panelists' tag, and the header's progress line with its Stop or Save button */
+.mb-tag.discuss {
+  flex: 0 4 auto;
+  min-width: 3em;
+  max-width: 14em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0 5px;
+  border-radius: 4px;
+  font-size: 11px;
+  border: 1px solid var(--border);
+  color: var(--text-3);
+}
+.mb-discuss {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--text-3);
+}
+.mb-discuss-state.running::before {
+  content: '';
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: typing 1.1s ease-in-out infinite;
+}
+.mb-discuss-state.failed,
+.mb-discuss-state.cancelled {
+  color: var(--warn);
+}
+.mb-msg.notice.discuss-head .mb-body {
+  text-align: left;
+}
+.mb-to {
+  flex: 1 1 0;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* reply, copy, save: a small bar at the row's far corner while it's hovered or focused */
+.mb-acts {
+  position: absolute;
+  top: -4px;
+  right: 0;
+  display: flex;
+  gap: 1px;
+  padding: 1px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: var(--bg-1);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s;
+  z-index: 1;
+}
+.mb-msg.user .mb-acts {
+  right: auto;
+  left: 0;
+}
+.mb-msg:hover .mb-acts,
+.mb-msg:focus-within .mb-acts {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.mb-text {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+.mb-text a {
+  color: var(--accent);
+}
+/* a mention: a chip with the whole name, so a name with spaces reads as one */
+.mb-mention {
+  padding: 0 4px;
+  border-radius: 4px;
+  color: var(--accent);
+  background: var(--accent-soft);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.mb-mention.you {
+  box-shadow: inset 0 0 0 1px var(--accent-line);
+}
+/* on the user's own accent-tinted bubble the chip needs a little more contrast */
+.mb-msg.user .mb-mention {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+/* under the user's message to agents: seen by / not read yet */
+.mb-delivery {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 2px 10px;
+  margin-top: 4px;
+  font-size: 10.5px;
+  color: var(--text-4);
+}
+.mb-delivery span {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.mb-delivery svg {
+  flex: none;
+}
+/* an ended agent the message mentioned: resumed, waiting, or why not (#62) */
+.mb-wake {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.mb-wake.blocked {
+  color: var(--danger);
+}
+.mb-wake-btn,
+.mb-wake-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--text-2);
+  text-decoration: underline;
+  text-decoration-color: var(--line);
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.mb-wake-btn:hover,
+.mb-wake-link:hover {
+  color: var(--text);
+  text-decoration-color: currentColor;
+}
+.mb-wake.back .mb-wake-link {
+  text-decoration: none;
+}
+
+/* Corvid on the user's @corvid message: replying, queued, or why not */
+.mb-corvid {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 5px;
+  font-size: 11px;
+  color: var(--text-3);
+}
+.mb-corvid.failed {
+  color: var(--danger);
+}
+.mb-corvid.failed span {
+  min-width: 0;
+}
+.mb-corvid .btn {
+  flex: none;
+}
+.mb-dots {
+  display: inline-flex;
+  gap: 3px;
+}
+.mb-dots span {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: typing 1.1s ease-in-out infinite;
+}
+.mb-dots span:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.mb-dots span:nth-child(3) {
+  animation-delay: 0.3s;
+}
+@media (prefers-reduced-motion: reduce) {
+  .mb-dots span {
+    animation: none;
+    opacity: 0.6;
+  }
+}
+.mb-ref {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--accent);
+  cursor: pointer;
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+}
+.mb-ref.quiet {
+  flex: none;
+  color: var(--text-3);
+  text-decoration: none;
+}
+.mb-ref.quiet:hover {
+  color: var(--text);
+}
+.mb-quote {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  padding: 0 0 2px;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 11.5px;
+  color: var(--text-3);
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+.mb-quote:hover {
+  color: var(--text-2);
+}
+.mb-quote.gone {
+  font-style: italic;
+  cursor: default;
+}
+.mb-qnote {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 5px;
+  font-size: 11.5px;
+  color: var(--text-3);
+}
+.mb-qnote .btn {
+  height: 22px;
+  padding: 0 8px;
+  font-size: 11.5px;
+}
+.mb-saved {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 4px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 11.5px;
+  color: var(--text-3);
+  cursor: pointer;
+}
+.mb-saved:hover {
+  color: var(--accent);
+}
+
+/* scrolled up while new messages came in */
+.mb-below {
+  position: absolute;
+  left: 50%;
+  bottom: 70px;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 12px;
+  border-radius: 13px;
+  border: 1px solid var(--accent-line);
+  background: var(--bg-3);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  z-index: 2;
+}
+
+/* ---------- composer: the assistant's input, reused ---------- */
+
+.mb-compose-wrap {
+  flex: none;
+  position: relative;
+  border-top: 1px solid var(--line);
+}
+
+/* the @ popup: above the composer, so it stays in the window at the bottom of the board, and never wider than it */
+.mb-mentions {
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: var(--mb-gutter);
+  width: min(340px, calc(100% - 2 * var(--mb-gutter)));
+  z-index: 5;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg-1);
+  box-shadow: var(--shadow-pop);
+  overflow: hidden;
+}
+.mboard.panel .mb-mentions {
+  left: 10px;
+  width: calc(100% - 20px);
+}
+.mb-mentions ul {
+  margin: 0;
+  padding: 3px;
+  list-style: none;
+  max-height: min(240px, 40vh);
+  overflow-y: auto;
+}
+.mb-mentions li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px;
+  border-radius: calc(var(--radius) - 2px);
+  cursor: pointer;
+  font-size: 12.5px;
+  color: var(--text);
+}
+.mb-mentions li.on {
+  background: var(--accent-soft);
+}
+.mb-mentions li.ended {
+  color: var(--text-3);
+}
+.mb-mentions li.ended .mb-mn-face {
+  opacity: 0.55;
+}
+.mb-mn-face {
+  flex: none;
+  display: inline-flex;
+}
+.mb-mn-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 500;
+}
+.mb-mn-side {
+  flex: none;
+  color: var(--text-4);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.mb-mentions li.cmd {
+  align-items: flex-start;
+}
+.mb-cmd-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.mb-cmd-name,
+.mb-cmd {
+  font-family: var(--mono, ui-monospace, 'Cascadia Code', Consolas, Menlo, 'DejaVu Sans Mono', monospace);
+  font-size: 12px;
+}
+.mb-cmd-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 500;
+}
+.mb-cmd-args {
+  color: var(--text-4);
+  font-weight: 400;
+}
+.mb-cmd-desc {
+  color: var(--text-3);
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mb-cmd-tag {
+  flex: none;
+  margin-top: 1px;
+  padding: 0 5px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 10px;
+  color: var(--text-4);
+}
+.mb-cmd-tag.dashboard,
+.mb-cmd-tag.extension {
+  color: var(--accent);
+  border-color: var(--accent-soft);
+}
+code.mb-cmd {
+  padding: 0 3px;
+  border-radius: 3px;
+  background: var(--accent-soft);
+}
+.mb-mn-hint {
+  padding: 5px 9px 6px;
+  border-top: 1px solid var(--line);
+  font-size: 10.5px;
+  color: var(--text-4);
+}
+.dock-compose.mb-compose {
+  border-top: 0;
+  padding: 10px var(--mb-gutter) 12px;
+}
+.mboard.panel .dock-compose.mb-compose {
+  padding: 8px 10px 10px;
+}
+.mb-replying {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px var(--mb-gutter) 0;
+  font-size: 11.5px;
+  color: var(--text-3);
+}
+.mboard.panel .mb-replying {
+  padding: 7px 10px 0;
+}
+.mb-replying span {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mb-replying b {
+  color: var(--text-2);
+}
+.mb-count {
+  padding: 0 var(--mb-gutter) 8px;
+  font-size: 11px;
+  text-align: right;
+  color: var(--text-4);
+}
+.mb-count.over {
+  color: var(--danger);
+}
+
+/* ---------- the folded strip beside a terminal ---------- */
+
+.mb-strip {
+  flex: none;
+  width: 40px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 0;
+  border: 0;
+  border-left: 1px solid var(--line);
+  background: var(--bg-1);
+  color: var(--text-3);
+  font: inherit;
+  cursor: pointer;
+}
+.mb-strip:hover {
+  background: var(--bg-2);
+  color: var(--text);
+}
+.mb-strip .badge,
+.ag-switch-n {
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: var(--radius);
+  display: inline-grid;
+  place-items: center;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: 10px;
+  font-weight: 600;
+}
+.mb-strip.you .badge {
+  background: var(--warn);
+  color: var(--bg-1);
+}
+.mb-strip-label {
+  writing-mode: vertical-rl;
+  font-size: 11.5px;
+  letter-spacing: 0.04em;
+}
+
+/* new board messages, on the Agents button in the rail; amber when one is addressed to you */
+.rail-btn .rail-dot {
+  position: absolute;
+  bottom: 5px;
+  right: 6px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 2px var(--bg-1);
+}
+.rail-btn .rail-dot.you {
+  background: var(--warn);
+}
+
+/* Corvid's "what I did" line under its reply, and Stop beside "Corvid is replying" */
+.mb-did {
+  margin-top: 3px;
+  font-size: 11px;
+  color: var(--text-3);
+}
+.mb-did-head {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.mb-did-head:hover {
+  color: var(--text-2);
+}
+.mb-did ul {
+  margin: 3px 0 0;
+  padding: 0 0 0 14px;
+  list-style: none;
+}
+.mb-did li {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.mb-did li.failed {
+  color: var(--danger);
+}
+.mb-corvid .btn.stop {
+  margin-left: 6px;
+}
+
+/* questions to start from, above the message box while it's empty */
+.mb-sugg {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 0 0 6px;
+}
+.mb-sugg .chip {
+  font-size: 11px;
+  cursor: pointer;
+}
+
+/* under the message box: who a message with no @mention goes to (#69), Corvid or Board only, and who this one is for */
+.mb-route {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  margin-top: -4px;
+  padding: 0 var(--mb-gutter) 8px;
+  font-size: 11px;
+  color: var(--text-4);
+}
+.mboard.panel .mb-route {
+  padding: 0 10px 8px;
+}
+.mb-route-label {
+  flex: none;
+}
+.mb-route-seg {
+  flex: none;
+}
+/* an @mention or a reply decides instead: the choice stays visible but steps back */
+.mb-route-seg.decided {
+  opacity: 0.55;
+}
+.mb-route-hint {
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Formatted messages (#126): agents', Corvid's and the app's messages with light structure. The colours are
+   --fmt-*, worked out per theme from its tokens in theme.ts so each reads at 4.5:1 on every bubble. Status words
+   only get a tone and a soft underline: the word itself says it. */
+.mb-fmt {
+  max-width: 76ch;
+  white-space: pre-wrap;
+}
+.mb-msg.notice .mb-fmt {
+  margin: 0 auto;
+}
+.mb-fmt > .fmt-p {
+  margin: 0;
+}
+/* a blank line in the original: a small gap between paragraphs and lists */
+.mb-fmt > * + .fmt-p,
+.mb-fmt > * + .fmt-list {
+  margin-top: 0.45em;
+}
+.mb-fmt strong {
+  font-weight: 650;
+  color: var(--fmt-text);
+}
+.mb-fmt em {
+  font-style: italic;
+}
+.fmt-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+/* a hanging indent: the marker in a column of its own, wrapped lines under the text */
+.fmt-li {
+  display: flex;
+  gap: 6px;
+  text-align: left;
+}
+.fmt-li.l1 {
+  padding-left: 1.3em;
+}
+.fmt-li.l2 {
+  padding-left: 2.6em;
+}
+.fmt-mk {
+  flex: none;
+  min-width: 0.9em;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+.fmt-list.ol .fmt-mk {
+  min-width: 1.9em;
+  text-align: right;
+}
+.fmt-li-body {
+  flex: 1;
+  min-width: 0;
+}
+.fmt-code,
+.fmt-path,
+.fmt-hash {
+  padding: 0 3px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--text) 8%, transparent);
+  font-family: var(--mono);
+  font-size: 0.9em;
+  overflow-wrap: anywhere;
+  unicode-bidi: isolate;
+}
+.fmt-version {
+  font-family: var(--mono);
+  font-size: 0.92em;
+  unicode-bidi: isolate;
+}
+.fmt-num {
+  font-weight: 600;
+  color: var(--fmt-text);
+}
+.fmt-url {
+  color: var(--fmt-link);
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+  overflow-wrap: anywhere;
+  unicode-bidi: isolate;
+  cursor: text;
+}
+.fmt-ok,
+.fmt-warn,
+.fmt-bad {
+  font-weight: 550;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+.fmt-ok {
+  color: var(--fmt-ok);
+  text-decoration-color: color-mix(in srgb, var(--fmt-ok) 40%, transparent);
+}
+.fmt-warn {
+  color: var(--fmt-warn);
+  text-decoration-color: color-mix(in srgb, var(--fmt-warn) 40%, transparent);
+}
+.fmt-bad {
+  color: var(--fmt-bad);
+  text-decoration-color: color-mix(in srgb, var(--fmt-bad) 40%, transparent);
+}
+/* a long message folds to a preview; the fade only when something is really cut off */
+.mb-fmt.fold {
+  max-height: 13.5em;
+  overflow: hidden;
+}
+.mb-fmt.fold.cut {
+  mask-image: linear-gradient(to bottom, #000 70%, transparent);
+}
+.mb-more {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-top: 3px;
+  padding: 1px 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--fmt-link);
+  cursor: pointer;
+}
+.mb-more:hover {
+  text-decoration: underline;
+}
+
+/* ---------- channels (#145): a row of filters over the one board, scrolling sideways in a narrow pane ---------- */
+.mb-channels {
+  flex: none;
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px var(--mb-gutter);
+  border-bottom: 1px solid var(--line);
+}
+.mb-ch-row {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  padding: 2px 0;
+}
+.mb-ch {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 24px;
+  padding: 0 9px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: none;
+  color: var(--text-3);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.mb-ch:hover {
+  color: var(--text);
+  background: var(--bg-2);
+}
+.mb-ch:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.mb-ch.on {
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-color: var(--accent-line);
+}
+.mb-ch-name {
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mb-ch-badge {
+  min-width: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--bg-3);
+  color: var(--text-2);
+  font-size: 10.5px;
+  line-height: 16px;
+  text-align: center;
+}
+.mb-ch.on .mb-ch-badge {
+  background: var(--accent-line);
+  color: var(--text);
+}
+/* something for the user waits here: a warm dot, and the badge in the same colour */
+.mb-ch-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--warn);
+}
+.mb-ch.you .mb-ch-badge {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+.mb-channels > .btn.on {
+  color: var(--accent);
+}
+.mb-ch-manage {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 4px);
+  right: var(--mb-gutter);
+  width: min(280px, calc(100% - 24px));
+  max-height: 300px;
+  overflow-y: auto;
+  padding: 6px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius);
+  background: var(--bg-1);
+  box-shadow: var(--shadow-pop);
+  font-size: 12px;
+}
+.mb-ch-manage p {
+  margin: 6px;
+}
+.mb-ch-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 4px;
+}
+.mb-ch-item > span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mb-elsewhere {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px var(--mb-gutter);
+  font-size: 12px;
+  color: var(--text-2);
+  border-bottom: 1px solid var(--line);
+  background: var(--warn-soft);
+}
+.mb-elsewhere b {
+  color: var(--warn);
+}
+.mb-elsewhere span {
+  flex: 1;
+}
+.mb-chan-tag {
+  color: var(--text-4);
+  font-size: 11px;
+}
+
+/* ---------- attached files (#147) ---------- */
+
+/* the files waiting for the next message, and the ones on a sent message: they wrap, never widen the board */
+.mb-attach-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px var(--mb-gutter) 0;
+  max-height: 120px;
+  overflow-y: auto;
+}
+.mboard.panel .mb-attach-row {
+  padding: 8px 10px 0;
+}
+.mb-attach-row.sent {
+  padding: 6px 0 2px;
+  max-height: none;
+  overflow: visible;
+}
+.mb-att {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 220px;
+  min-width: 0;
+  height: 26px;
+  padding: 0 4px 0 7px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg-1);
+  color: var(--text-2);
+  font: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
+}
+.mb-att.staged {
+  cursor: default;
+  padding-left: 4px;
+}
+button.mb-att:hover,
+button.mb-att:focus-visible {
+  border-color: var(--accent);
+}
+.mb-att-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mb-att-size {
+  flex: none;
+  color: var(--text-4);
+  font-size: 10.5px;
+}
+.mb-att-thumb {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 3px;
+  object-fit: cover;
+}
+.mb-att.image {
+  height: auto;
+  padding: 2px;
+}
+.mb-att-img {
+  display: block;
+  width: 96px;
+  height: 72px;
+  border-radius: calc(var(--radius) - 2px);
+  object-fit: cover;
+  background: var(--bg-2);
+}
+.mb-attach-btn {
+  flex: none;
+  align-self: flex-end;
+}
+
+/* dragging files over the board */
+.mb-drop {
+  position: absolute;
+  inset: 6px;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px dashed var(--accent);
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--accent) 10%, color-mix(in srgb, var(--bg-1) 85%, transparent));
+  color: var(--text);
+  font-size: 13px;
+  pointer-events: none;
+}
+.mb-drop span {
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--bg-1);
+  box-shadow: var(--shadow-pop);
+}
+
+/* an attached image, larger; Esc closes it */
+.mb-viewer {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: color-mix(in srgb, #000 70%, transparent);
+}
+.mb-viewer figure {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 100%;
+  max-height: 100%;
+}
+.mb-viewer img {
+  min-height: 0;
+  max-width: 100%;
+  max-height: calc(100vh - 90px);
+  object-fit: contain;
+  border-radius: var(--radius);
+  background: var(--bg-2);
+}
+.mb-viewer figcaption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 6px 4px 10px;
+  border-radius: var(--radius);
+  background: var(--bg-1);
+  color: var(--text-2);
+  font-size: 12px;
+}
+.mb-viewer figcaption span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

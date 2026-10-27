@@ -1,0 +1,49 @@
+{
+  "format": 1,
+  "id": "your-first-day",
+  "title": "Your first day",
+  "summary": "The daily loop: a project, a task, a worker, the board, merge and Done.",
+  "steps": [
+    {
+      "anchor": "nav.projects",
+      "view": "projects",
+      "text": "A project is a folder with your code. Corvid keeps tasks, agents and notes per project, so start by picking one here."
+    },
+    {
+      "anchor": "board.add-task",
+      "view": "tasks",
+      "advance": "task-created",
+      "text": "This is the task board. Add a task now: one clear job, like a bug to fix. I move on when it lands."
+    },
+    {
+      "anchor": "task.start-worker",
+      "view": "tasks",
+      "advance": "worker-started",
+      "text": "Start a worker on your task. A worker is a Claude Code agent on its own git branch, so your main folder stays as it is."
+    },
+    {
+      "anchor": "agents.worker-card",
+      "view": "terminals",
+      "text": "Each worker gets a card here. Click it to see its terminal; you can type to it like any Claude session."
+    },
+    {
+      "anchor": "messages.board",
+      "view": "terminals",
+      "text": "Workers post on the board when they start and when they finish. The done post says what changed and what is left for you."
+    },
+    {
+      "anchor": "board.done-column",
+      "view": "tasks",
+      "text": "When the checks pass, the worker merges its branch into main and the task moves to Done. Look it over there."
+    },
+    {
+      "anchor": "board.add-task",
+      "view": "tasks",
+      "text": "A deploy is a task of its own. Workers never deploy unless a task asks for it, so add one when you want the work live."
+    },
+    {
+      "anchor": "titlebar.tours",
+      "text": "Replay any tour from here, or ask Corvid to explain something."
+    }
+  ]
+}

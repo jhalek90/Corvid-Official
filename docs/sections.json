@@ -1,0 +1,54 @@
+{
+  "sections": [
+    {
+      "id": "getting-started",
+      "title": "Getting started",
+      "order": 1
+    },
+    {
+      "id": "projects",
+      "title": "Projects",
+      "order": 2
+    },
+    {
+      "id": "tasks-and-agents",
+      "title": "Tasks and agents",
+      "order": 3
+    },
+    {
+      "id": "board-and-corvid",
+      "title": "Board and Corvid",
+      "order": 4
+    },
+    {
+      "id": "usage",
+      "title": "Usage and limits",
+      "order": 5
+    },
+    {
+      "id": "connections",
+      "title": "Connections",
+      "order": 6
+    },
+    {
+      "id": "extensions",
+      "title": "Extensions",
+      "order": 7
+    },
+    {
+      "id": "settings",
+      "title": "Settings",
+      "order": 8
+    },
+    {
+      "id": "platforms",
+      "title": "Platforms and updates",
+      "order": 9
+    },
+    {
+      "id": "help",
+      "title": "Help",
+      "order": 10
+    }
+  ]
+}

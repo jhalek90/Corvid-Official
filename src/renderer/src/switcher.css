@@ -1,0 +1,259 @@
+/* The project switcher in the top bar, its menu, and the chip on filtered views (#77). */
+
+.titlebar .brand {
+  min-width: 0;
+}
+
+.psw {
+  -webkit-app-region: no-drag;
+  min-width: 0;
+  flex: 0 1 auto;
+}
+.psw-btn {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 26px;
+  max-width: 220px;
+  padding: 0 7px 0 5px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius);
+  background: var(--bg-2);
+  color: var(--text-2);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+.psw-btn:hover,
+.psw-btn[aria-expanded='true'] {
+  border-color: var(--line-3);
+  color: var(--text);
+}
+.psw-btn.on {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line-2));
+  color: var(--text);
+}
+.psw-name {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.psw-chev {
+  flex: none;
+  color: var(--text-4);
+}
+
+.psw-mark {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--mark, var(--accent)) 24%, var(--bg-3));
+  color: var(--mark, var(--accent));
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 1;
+}
+.psw-mark.all {
+  background: var(--bg-3);
+  color: var(--text-3);
+}
+
+.psw-menu {
+  -webkit-app-region: no-drag;
+  position: fixed;
+  z-index: 400;
+  width: 320px;
+  max-width: calc(100vw - 16px);
+  max-height: min(70vh, 480px);
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line-3);
+  border-radius: var(--radius-lg);
+  background: var(--bg-1);
+  box-shadow: var(--shadow-dialog);
+  overflow: hidden;
+}
+.psw-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 10px;
+  border-bottom: 1px solid var(--line-2);
+  color: var(--text-3);
+}
+.psw-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+}
+.psw-list {
+  overflow-y: auto;
+  padding: 4px;
+}
+.psw-group {
+  padding: 8px 8px 3px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-4);
+}
+.psw-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 30px;
+  padding: 0 8px;
+  border-radius: var(--radius);
+  color: var(--text-2);
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.psw-row.hi {
+  background: var(--bg-3);
+  color: var(--text);
+}
+.psw-row.archived {
+  color: var(--text-3);
+}
+.psw-row-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.psw-pin {
+  flex: none;
+  color: var(--text-4);
+}
+.psw-tag {
+  flex: none;
+  font-size: 10.5px;
+  color: var(--text-4);
+}
+.psw-check {
+  flex: none;
+  color: var(--accent);
+}
+.psw-empty {
+  padding: 14px 8px;
+  color: var(--text-3);
+  font-size: 12px;
+}
+.psw-foot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 12px;
+  border: 0;
+  border-top: 1px solid var(--line-2);
+  background: transparent;
+  color: var(--text-3);
+  font: inherit;
+  font-size: 11.5px;
+  text-align: left;
+  cursor: pointer;
+}
+.psw-foot:hover {
+  color: var(--text);
+}
+
+/* on a filtered view, beside its title */
+.scope-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 20px;
+  max-width: 220px;
+  padding: 0 2px 0 4px;
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--line-2));
+  border-radius: var(--radius-sm);
+  background: var(--bg-2);
+  color: var(--text-2);
+  font-size: 11px;
+  font-weight: 500;
+  vertical-align: 2px;
+  white-space: nowrap;
+}
+h2 .scope-chip {
+  margin-left: 10px;
+}
+.scope-chip-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.scope-chip-x {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+}
+.scope-chip-x:hover {
+  background: var(--bg-3);
+  color: var(--text);
+}
+
+/* Needs you and approvals from projects the switcher hides */
+.scope-elsewhere {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 10px;
+  padding: 7px 10px;
+  border: 1px solid color-mix(in srgb, var(--warn) 40%, var(--line-2));
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--warn) 8%, var(--bg-1));
+  color: var(--text-2);
+  font-size: 12px;
+}
+.scope-elsewhere b {
+  color: var(--warn);
+  font-weight: 600;
+}
+
+/* Usage: the chosen project's row in Top projects */
+.usage-projects .item.scope-hit .label {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* the top bar gained the switcher: let search give way before anything wraps (the window is at least 1040px) */
+.titlebar .search-trigger {
+  min-width: 120px;
+  flex: 0 1 auto;
+}
+.titlebar .search-trigger span {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.titlebar .live-pill {
+  flex: none;
+  white-space: nowrap;
+}
+@media (max-width: 1200px) {
+  .titlebar .brand-name {
+    display: none;
+  }
+  .psw-btn {
+    max-width: 160px;
+  }
+}

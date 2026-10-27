@@ -1,0 +1,69 @@
+# Dependencies (package-lock.json stays tracked: npm ci in setup, deploy and CI needs it)
+# (no trailing slash, so a linked node_modules, as in agent worktrees, is ignored too)
+node_modules
+.npm/
+.pnpm-store/
+.yarn/
+
+# Build output: electron-vite writes out/, electron-builder writes dist/ (build.directories.output)
+out/
+dist/
+release/
+*.asar
+*.tsbuildinfo
+.vite/
+.cache/
+coverage/
+.nyc_output/
+
+# Logs and crash dumps
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.dmp
+
+# Local scratch and temp files
+*.tmp
+*.bak
+*.orig
+*.rej
+
+# Agent worktrees live next to the repo (<repo>-worktrees/), but keep them out if one ends up inside
+*-worktrees/
+
+# OS files
+.DS_Store
+.AppleDouble
+._*
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.directory
+.Trash-*
+
+# Editors
+.idea/
+.vscode/
+*.code-workspace
+*.swp
+*.swo
+*~
+.history/
+
+# Remote systems: connection info and secrets live in the app data folder, never here.
+connections*.json
+secrets*
+*.pem
+*.p12
+*.pfx
+*.ppk
+*.key
+id_rsa*
+id_dsa*
+id_ecdsa*
+id_ed25519*
+known_hosts
+.env
+.env.*

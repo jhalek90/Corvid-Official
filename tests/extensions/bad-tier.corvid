@@ -1,0 +1,29 @@
+---
+format: 1
+id: test-bad-tier
+name: Connector colours
+version: 1.0.0
+author: Test Corpus
+description: A fake test extension: a tier-3 change declared as tier 1.
+built_on: 0.1.0 @ 037fab4
+effort: small
+capabilities.tier: 1
+capabilities.rebuild: yes
+---
+
+## Summary
+
+Colours connector cards by type.
+
+## What it does
+
+Connector cards get a coloured edge.
+
+## Seed prompt
+
+Change src/main/connectors/approvals.ts so cards report their type, and give each connector card a coloured left edge by type.
+
+## Acceptance checks
+
+1. The new view opens from the rail.
+2. Nothing else changes.

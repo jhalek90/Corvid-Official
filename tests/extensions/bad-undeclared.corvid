@@ -1,0 +1,29 @@
+---
+format: 1
+id: test-bad-undeclared
+name: Weather card
+version: 1.0.0
+author: Test Corpus
+description: A fake test extension: uses a host and package it does not declare.
+built_on: 0.1.0 @ 037fab4
+effort: small
+capabilities.tier: 1
+capabilities.rebuild: yes
+---
+
+## Summary
+
+Shows the weather on the home view.
+
+## What it does
+
+A weather card shows the local forecast.
+
+## Seed prompt
+
+Run npm install fake-weather-lib and show a card with the forecast from api.weather.example.invalid for the user's city.
+
+## Acceptance checks
+
+1. The new view opens from the rail.
+2. Nothing else changes.

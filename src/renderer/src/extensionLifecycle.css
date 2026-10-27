@@ -1,0 +1,209 @@
+/* The lifecycle of an installed extension on its card and page (#99): manage, review a change, remove, update, history. */
+
+.lc h3 {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.lc p,
+.lc-modal p {
+  overflow-wrap: anywhere;
+}
+.lc-warn,
+.lc-ok,
+.lc-bad {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+  margin: 4px 0;
+}
+.lc-warn svg,
+.lc-ok svg,
+.lc-bad svg {
+  flex: none;
+  margin-top: 3px;
+}
+.lc-warn {
+  color: var(--warn);
+}
+.lc-ok {
+  color: var(--ok);
+}
+.lc-bad {
+  color: var(--danger);
+}
+.lc-chip.lc-installed-needs-deploy,
+.lc-chip.lc-pending-review {
+  color: var(--accent);
+  border-color: var(--accent-line);
+}
+.lc-chip.lc-changed-outside,
+.lc-chip.lc-needs-rebuild,
+.lc-chip.lc-up {
+  color: var(--warn);
+  border-color: color-mix(in srgb, var(--warn) 50%, transparent);
+}
+.lc-chip.lc-disabled,
+.lc-chip.lc-removed {
+  color: var(--text-2);
+}
+.lc-actions {
+  flex-wrap: wrap;
+}
+.lc-pending,
+.lc-conflict,
+.lc-update {
+  padding: 12px 14px;
+  margin: 10px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.lc-files {
+  margin: 4px 0;
+  padding-left: 18px;
+  max-height: 180px;
+  overflow: auto;
+}
+.lc-files code {
+  overflow-wrap: anywhere;
+}
+.lc-diff,
+.lc-out {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  max-height: 360px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg-1);
+  margin: 4px 0;
+}
+.lc-add {
+  color: var(--ok);
+}
+.lc-del {
+  color: var(--danger);
+}
+.lc-modal {
+  width: min(560px, calc(100vw - 32px));
+  max-height: 80vh;
+  overflow: auto;
+}
+.lc-modal ol {
+  margin: 4px 0 10px 18px;
+  padding: 0;
+}
+.lc-note {
+  margin: 6px 0 10px;
+  color: var(--text-2);
+}
+.lc-check {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin: 8px 0 14px;
+}
+.lc-check input {
+  margin-top: 3px;
+  flex: none;
+}
+.lc-history {
+  margin-top: 10px;
+}
+.lc-history summary {
+  cursor: pointer;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  color: var(--text-2);
+}
+.lc-history ol {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+}
+.lc-history li {
+  padding: 4px 0;
+  border-bottom: 1px solid var(--line);
+  overflow-wrap: anywhere;
+}
+.lc-when {
+  color: var(--text-2);
+  font-size: 12px;
+}
+.ext-showremoved {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  font-size: 12px;
+  color: var(--text-2);
+}
+@media (max-width: 560px) {
+  .lc-actions .btn,
+  .lc-pending .btn,
+  .lc-update .btn {
+    flex: 1 1 100%;
+    justify-content: center;
+  }
+}
+.lc-chip {
+  white-space: nowrap;
+}
+.lc-card-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* Resolve with an agent (#117): the conflict box's states, the reasons, the agent's report and Send back. */
+.lc-chip.lc-conflicted,
+.lc-chip.lc-prot {
+  color: var(--warn);
+  border-color: color-mix(in srgb, var(--warn) 50%, transparent);
+}
+.lc-chip.lc-resolving {
+  color: var(--accent);
+  border-color: var(--accent-line);
+}
+.lc-chip.lc-prot {
+  margin-left: 6px;
+  font-size: 11px;
+}
+.lc-conflict > b {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.lc-hold-held > b,
+.lc-hold-failed > b,
+.lc-hold-interrupted > b {
+  color: var(--warn);
+}
+.lc-hold-resolving > b {
+  color: var(--accent);
+}
+.lc-reasons {
+  margin: 4px 0;
+  padding-left: 18px;
+  overflow-wrap: anywhere;
+}
+.lc-report summary {
+  cursor: pointer;
+  color: var(--text-2);
+}
+.lc-report p {
+  white-space: pre-wrap;
+  max-height: 200px;
+  overflow: auto;
+}
+.lc-sendback textarea {
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+}

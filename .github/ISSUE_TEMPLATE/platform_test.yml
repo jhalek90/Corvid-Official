@@ -1,0 +1,43 @@
+name: Platform test report
+description: Results from trying Corvid on a real Mac or Linux desktop.
+title: "Platform test: "
+labels: [platform-test]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Work through the tester checklist in [docs/TESTING-PLATFORMS.md](https://github.com/jhalek90/Corvid-Official/blob/main/docs/TESTING-PLATFORMS.md#tester-checklist) and report each item here. Title the issue with the platform, for example "Platform test: macOS 15 (Apple Silicon)" or "Platform test: Ubuntu 24.04 GNOME Wayland".
+
+        Attach only the files that page lists (setup output, `deploy.log`, `crash.log`), and read each one first. Never attach `config.json`, `connections/`, `remote/`, `secrets.json`, the board or notes, anything from `~/.claude`, keys, tokens or passwords.
+  - type: textarea
+    id: machine
+    attributes:
+      label: Machine
+      description: OS and version, `uname -m`, desktop and session type (Linux), and the output of `node --version`, `npm --version`, `git --version` and `claude --version`.
+    validations:
+      required: true
+  - type: input
+    id: build
+    attributes:
+      label: Corvid build
+      description: The build line in Settings (`Corvid v… · build <commit>`), or `git rev-parse --short HEAD` in your clone.
+    validations:
+      required: true
+  - type: textarea
+    id: results
+    attributes:
+      label: Checklist results
+      description: One line per numbered item, pass, fail or skipped, and what you saw for each fail.
+      placeholder: |
+        1. Install: pass
+        2. First launch: fail, the traffic lights cover the brand
+        3. Add a project: skipped
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: Anything else
+      description: Screenshots of anything that looks wrong, and anything the checklist doesn't cover.
+    validations:
+      required: false

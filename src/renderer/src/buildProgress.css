@@ -1,0 +1,271 @@
+/* Live build progress (#108): the card's compact form and the panel on an extension's page. Stages carry words and
+   icons, not only colour. */
+
+.bp-chip {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg-2);
+  font-size: 12px;
+  color: var(--text-2);
+  min-width: 0;
+}
+.bp-chip.needs,
+.bp-panel.needs {
+  border-color: var(--warn);
+}
+.bp-chip-top,
+.bp-chip-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.bp-chip-top b {
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+.bp-chip-meta span {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.bp-over {
+  color: var(--danger);
+}
+.bp-bar {
+  display: flex;
+  gap: 2px;
+  height: 3px;
+}
+.bp-seg {
+  flex: 1;
+  border-radius: 2px;
+  background: var(--line);
+}
+.bp-seg.done,
+.bp-seg.skipped {
+  background: var(--accent-line);
+}
+.bp-seg.current {
+  background: var(--accent);
+}
+.bp-bar.e-failed .bp-seg.current,
+.bp-bar.e-stopped .bp-seg.current,
+.bp-bar.e-interrupted .bp-seg.current,
+.bp-bar.e-no-report .bp-seg.current {
+  background: var(--danger);
+}
+.bp-bar.e-needs-input .bp-seg.current {
+  background: var(--warn);
+}
+.bp-agent {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--text-3);
+}
+.bp-agent.a-working {
+  color: var(--ok);
+}
+.bp-agent.a-needs-you {
+  color: var(--warn);
+  font-weight: 600;
+}
+.bp-spin {
+  animation: bp-spin 1.6s linear infinite;
+}
+@keyframes bp-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bp-spin {
+    animation: none;
+  }
+}
+
+.bp-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.bp-head h3 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+}
+.bp-needs {
+  display: flex;
+  gap: 8px;
+  margin: 10px 0;
+  padding: 10px 12px;
+  border: 1px solid var(--warn);
+  border-radius: var(--radius);
+  color: var(--text);
+}
+.bp-needs > svg {
+  flex: none;
+  color: var(--warn);
+  margin-top: 2px;
+}
+.bp-needs .btn {
+  margin-left: 8px;
+}
+.bp-interrupted {
+  display: flex;
+  gap: 6px;
+  color: var(--warn);
+  overflow-wrap: anywhere;
+}
+.bp-interrupted svg {
+  flex: none;
+  margin-top: 3px;
+}
+.bp-stages {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  margin: 10px 0;
+  padding: 0;
+  list-style: none;
+}
+.bp-stages li {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 12px;
+  color: var(--text-3);
+}
+.bp-stages li.done {
+  color: var(--text-2);
+}
+.bp-stages li.current {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--text);
+  font-weight: 600;
+}
+.bp-stages li.end {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+.bp-time {
+  color: var(--text-3);
+  font-weight: 400;
+}
+.bp-numbers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+}
+.bp-numbers span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.bp-cols {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
+}
+.bp-panel h4 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 12px 0 4px;
+  font-size: 13px;
+}
+.bp-lines,
+.bp-checks,
+.bp-posts,
+.bp-files ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+}
+.bp-lines li,
+.bp-posts li {
+  padding: 2px 0;
+  overflow-wrap: anywhere;
+}
+.bp-when {
+  color: var(--text-3);
+}
+.bp-src {
+  margin-left: 4px;
+  font-size: 11px;
+  color: var(--text-3);
+}
+.bp-src.s-agent {
+  color: var(--accent);
+}
+.bp-checks li {
+  display: flex;
+  gap: 6px;
+  padding: 2px 0;
+  overflow-wrap: anywhere;
+}
+.bp-checks li > svg {
+  flex: none;
+  margin-top: 2px;
+}
+.bp-checks .c-pass {
+  color: var(--ok);
+}
+.bp-checks .c-fail {
+  color: var(--danger);
+}
+.bp-files {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 8px;
+  font-size: 12px;
+}
+.bp-files li {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.bp-files code {
+  font-family: var(--mono);
+  overflow-wrap: anywhere;
+}
+.bp-files li.prot {
+  color: var(--danger);
+}
+.bp-branch {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.bp-branch code {
+  font-family: var(--mono);
+  overflow-wrap: anywhere;
+}
+.bp-stages.compact li {
+  padding: 2px 6px;
+}
+
+/* the "extension" label on a build task's card */
+.tc-ext {
+  margin-right: 6px;
+  font-size: 10px;
+  vertical-align: 1px;
+}

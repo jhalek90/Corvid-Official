@@ -1,0 +1,512 @@
+/* The Extensions tab (#95): calm, compact cards and a read-only page */
+
+.ext-view {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 20px 24px 32px;
+  min-width: 0;
+  overflow: auto;
+  height: 100%;
+}
+.ext-head {
+  flex-wrap: wrap;
+}
+.ext-actions,
+.ext-buttons {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.ext-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 10px;
+}
+.ext-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px;
+  text-align: left;
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+  min-width: 0;
+}
+.ext-card:hover {
+  border-color: var(--line-3);
+  background: var(--bg-2);
+}
+.ext-card-top {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+.ext-name {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ext-ver {
+  color: var(--text-3);
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 400;
+}
+.ext-card-top .ext-status {
+  margin-left: auto;
+}
+.ext-desc {
+  color: var(--text-2);
+  font-size: 12.5px;
+  line-height: 1.45;
+  /* one line on a card; the whole description is on the page and in the card's tooltip */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ext-verified {
+  flex: none;
+  color: var(--accent);
+}
+.ext-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  color: var(--text-3);
+  font-size: 11.5px;
+}
+.ext-tier.t2 {
+  color: var(--text-2);
+}
+.ext-tier.t3 {
+  color: var(--warn);
+}
+.ext-status.s-failed {
+  color: var(--danger);
+}
+.ext-status.s-installed {
+  color: var(--accent);
+  border-color: var(--accent-line);
+}
+
+.ext-page {
+  max-width: 860px;
+}
+/* #119: a short top, then the long parts collapsed. Text keeps a readable line length at any pane width. */
+.ext-page .ext-text,
+.ext-summary,
+.ext-fold-body > p,
+.ext-fold-body .ext-text {
+  max-width: 72ch;
+}
+.ext-status.s-verified {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--accent);
+  border-color: var(--accent-line);
+}
+.ext-title-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin-top: 6px;
+  font-size: 12px;
+}
+.ext-summary p {
+  margin: 0 0 4px;
+}
+.ext-lede {
+  color: var(--text);
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+.ext-more {
+  padding: 0;
+  font-size: 12px;
+}
+.ext-perms {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ext-perm {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  padding: 3px 9px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--bg-2);
+  color: var(--text-2);
+  font: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ext-perm:hover {
+  color: var(--text);
+  border-color: var(--line-3);
+}
+.ext-perm:focus-visible,
+.ext-fold-head:focus-visible {
+  outline: 2px solid var(--accent-line);
+  outline-offset: 1px;
+}
+.ext-perm.none {
+  color: var(--text-3);
+}
+.ext-perm.warn,
+.ext-perm.t-warn {
+  color: var(--warn);
+  background: var(--warn-soft);
+}
+.ext-perm.t-bad {
+  color: var(--danger);
+  background: var(--danger-soft);
+}
+.ext-perm.t-ok {
+  color: var(--accent);
+}
+.ext-flagcount {
+  margin-left: 2px;
+  font-weight: 600;
+}
+.ext-costline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+  color: var(--text-3);
+  font-size: 12px;
+}
+.ext-quiet {
+  color: var(--text-3);
+}
+.ext-quiet:hover {
+  color: var(--danger);
+}
+.ext-folds {
+  display: flex;
+  flex-direction: column;
+  margin-top: 6px;
+  border-top: 1px solid var(--line);
+}
+.ext-fold {
+  border-bottom: 1px solid var(--line);
+  scroll-margin-top: 12px;
+}
+.ext-fold-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  padding: 9px 2px;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.ext-fold-head:hover .ext-fold-title {
+  color: var(--accent);
+}
+.ext-chev {
+  flex: none;
+  align-self: center;
+  color: var(--text-3);
+  transition: transform 0.12s;
+}
+.ext-fold.open .ext-chev {
+  transform: rotate(90deg);
+}
+.ext-fold-title {
+  flex: none;
+  font-size: 13px;
+  font-weight: 600;
+}
+.ext-fold-hint {
+  min-width: 0;
+  color: var(--text-3);
+  font-size: 11.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ext-fold-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 2px 2px 14px 22px;
+  min-width: 0;
+}
+/* panels that bring their own section heading sit flush inside a fold */
+.ext-fold-body > .ext-sec > h3:first-child {
+  margin-top: 0;
+}
+.ext-box {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-width: 0;
+}
+.ext-box > .ext-pre {
+  align-self: stretch;
+}
+.ext-box-tools {
+  align-self: flex-end;
+}
+.ext-scroll {
+  max-height: 360px;
+  overflow: auto;
+}
+.ext-scroll.all {
+  max-height: none;
+}
+/* long extension and agent text scrolls in its own box instead of lengthening the page */
+.ext-page .inst-report .inst-pre,
+.ext-page .xscan-lines,
+.ext-page .xscan-summary,
+.ext-page .inst-flags,
+.ext-page .lc-report .ext-small,
+.ext-page .vfy-fail details .ext-small {
+  max-height: 260px;
+  overflow: auto;
+}
+.ext-title h2 {
+  overflow-wrap: anywhere;
+}
+.ext-back {
+  align-self: flex-start;
+}
+.ext-title {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.ext-title h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+}
+.ext-title p {
+  margin: 4px 0 0;
+}
+.ext-review {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 14px;
+  border-color: var(--accent-line);
+  background: var(--accent-soft);
+}
+.ext-review p {
+  margin: 4px 0 0;
+  color: var(--text-2);
+  font-size: 12.5px;
+}
+.ext-review > div {
+  flex: 1;
+}
+.ext-warn {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  color: var(--warn);
+  font-size: 12.5px;
+}
+.ext-sec h3 {
+  margin: 6px 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+.ext-text {
+  white-space: pre-wrap;
+  color: var(--text-2);
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+.ext-small {
+  margin: 6px 0;
+  color: var(--text-3);
+  font-size: 11.5px;
+}
+.ext-dl {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 5px 16px;
+  margin: 0;
+  font-size: 12.5px;
+}
+.ext-dl dt {
+  color: var(--text-3);
+}
+.ext-dl dd {
+  margin: 0;
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+}
+.ext-hash {
+  font-size: 11px;
+}
+.ext-checks {
+  margin: 0;
+  padding-left: 22px;
+  color: var(--text-2);
+  line-height: 1.55;
+}
+.ext-pre {
+  margin: 0;
+  padding: 12px 14px;
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--text);
+  user-select: text;
+}
+.ext-raw summary {
+  margin-top: 10px;
+  cursor: pointer;
+  color: var(--text-3);
+  font-size: 12px;
+}
+.ext-raw .ext-pre {
+  margin-top: 8px;
+}
+
+.dialog.ext-results {
+  width: min(620px, calc(100vw - 32px));
+  max-height: calc(100vh - 80px);
+  overflow: auto;
+}
+.ext-results > ul {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.ext-results > ul > li {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  font-size: 12.5px;
+  color: var(--text-2);
+}
+.ext-results > ul > li.bad {
+  border-color: var(--danger-soft);
+}
+.ext-results > ul > li.ask {
+  border-color: var(--accent-line);
+}
+.ext-results b {
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+.ext-errors {
+  margin: 0;
+  padding-left: 18px;
+}
+.ext-choices {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+
+@media (max-width: 640px) {
+  .ext-view {
+    padding: 14px 14px 24px;
+  }
+  .ext-dl {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .ext-dl dt {
+    margin-top: 4px;
+  }
+}
+
+.ext-page .btn.link {
+  height: auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+}
+.ext-page .btn.link:hover {
+  text-decoration: underline;
+}
+/* a narrow docked pane: one tighter column; chips and buttons wrap, the primary stays first */
+.ext-page {
+  container-type: inline-size;
+  /* inline-size containment needs a width that doesn't come from the content */
+  width: 100%;
+  box-sizing: border-box;
+}
+@container (max-width: 520px) {
+  .ext-fold-body {
+    padding-left: 6px;
+  }
+  .ext-fold-hint {
+    display: none;
+  }
+  .ext-perm {
+    font-size: 11px;
+  }
+}
+@media (max-width: 560px) {
+  .ext-page {
+    padding: 14px 16px 28px;
+  }
+}
+/* destructive buttons in the page's panels are quiet until hovered; each still asks first */
+.ext-page .ext-sec .btn.danger:not(:disabled) {
+  background: transparent;
+  border-color: var(--line);
+  color: var(--danger);
+}
+.ext-page .ext-sec .btn.danger:not(:disabled):hover {
+  background: var(--danger-soft);
+}
+/* the build panel on the page: the title, its line, the failure reason and the review's buttons come before the long
+   report, diff scan and diff (same panel, same actions, only the order on screen) */
+.ext-page .inst-build {
+  display: flex;
+  flex-direction: column;
+}
+.ext-page .inst-build > h3 {
+  order: -3;
+}
+.ext-page .inst-build > p.ext-small:first-of-type,
+.ext-page .inst-build > .inst-block {
+  order: -2;
+}
+.ext-page .inst-build > .inst-actions {
+  order: -1;
+  margin-bottom: 6px;
+}

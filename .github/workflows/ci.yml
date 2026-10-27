@@ -1,0 +1,132 @@
+# Checks every push and pull request on Windows, macOS and Linux. No secrets, read-only token, nothing published.
+# In a private repo (the maintainer's, whose Actions minutes are limited) it runs only from "Run workflow".
+# How to read the results: CONTRIBUTING.md, "Continuous integration".
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# a newer push to the same branch or pull request cancels the older run
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Test (${{ matrix.os }})
+    # a private repo runs CI only on demand; a public one on every push and pull request
+    if: ${{ !github.event.repository.private || github.event_name == 'workflow_dispatch' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22 # the major of package.json's engines (>=22.18); setup-node takes the newest 22.x
+          cache: npm
+      # the pre-commit scan over the checked-out tree (a shallow clone, so its one commit holds every file): secrets,
+      # key and .env files, node_modules or build output, and files over 5 MB. Once is enough, so Linux only.
+      - run: npm run secret-scan
+        if: runner.os == 'Linux'
+      # the docs linter (plain Node, no install needed): ASD+ rules, front matter, links. npm test runs it as well.
+      - run: npm run docs:lint
+        if: runner.os == 'Linux'
+      # npm ci's postinstall downloads Electron's binary but never fails the install; --strict makes a missing one fail here
+      - run: npm ci
+      - run: node scripts/electron-binary.mjs --strict
+      - run: npm run typecheck
+      - run: npm run build
+      # every node:test file in scripts/; Windows-only and POSIX-only tests skip themselves with a reason
+      - run: npm test
+
+      # The UI smoke test drives a test copy of Corvid. Ubuntu 24.04 blocks the user namespaces Chromium's sandbox
+      # needs (AppArmor), so allow them on this throwaway runner instead of running Electron with --no-sandbox.
+      - name: Allow Chromium's sandbox (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          if [ -e /proc/sys/kernel/apparmor_restrict_unprivileged_userns ]; then
+            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          fi
+          command -v xvfb-run || { sudo apt-get update && sudo apt-get install -y xvfb; }
+      # Required on Linux (under xvfb-run). It hasn't been proven reliable on the macOS and Windows runners yet, so
+      # there a failure shows as a warning and doesn't fail the run.
+      - name: UI smoke test
+        continue-on-error: ${{ runner.os != 'Linux' }}
+        run: |
+          smoke() {
+            out=$(npm run -s test-instance -- start --owner ci --data empty) || return 1
+            id=$(node -p 'JSON.parse(process.argv[1]).id' "$out")
+            node scripts/ui-smoke.mjs "$id" --owner ci && rc=0 || rc=$? # the copy is stopped either way
+            npm run -s test-instance -- stop "$id" --owner ci
+            return "$rc"
+          }
+          if [ "$RUNNER_OS" = Linux ]; then
+            export -f smoke
+            xvfb-run -a bash -c smoke
+          else
+            smoke
+          fi
+
+  # The test job runs npm ci with Node 22's npm 10. npm 11.6.2+ checks the lockfile more strictly (#183: it refused
+  # one missing @electron/windows-sign's optional entries), so check the newest npm 11 accepts the lockfile too.
+  npm11:
+    name: npm ci with npm 11 (${{ matrix.os }})
+    if: ${{ !github.event.repository.private || github.event_name == 'workflow_dispatch' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      # the newest npm 11 on this throwaway runner (npx npm@11 would reuse any npm 11 that's already there)
+      - run: npm install -g npm@11 && npm --version
+      # the lockfile check is all this job is for: no Electron download, no install scripts
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+      - run: git diff --exit-code package-lock.json
+
+  package:
+    name: Package (${{ matrix.os }})
+    needs: test
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      # electron-builder downloads its own Electron, so skip the one npm ci's postinstall would fetch
+      - run: npm ci
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+      - run: npm run build
+      # electron-builder --dir for the runner's platform, unsigned and unpublished, then the packaged app loads every
+      # module the main process needs (node-pty's platform package included). The build isn't uploaded.
+      - run: npm run package-check

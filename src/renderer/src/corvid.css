@@ -1,0 +1,316 @@
+/* ---------- Corvid: its strip on the board, approvals and Stop all in the Agents view, the shared message box ---------- */
+
+.dock-state {
+  font-size: 11.5px;
+  color: var(--text-3);
+}
+.dock-state.thinking,
+.dock-state.tool,
+.dock-state.starting {
+  color: var(--accent);
+}
+.dock-state.error {
+  color: var(--danger);
+}
+.btn.kill {
+  height: 22px;
+  padding: 0 7px;
+  font-size: 11px;
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 35%, transparent);
+  background: var(--danger-soft);
+}
+.proposal {
+  margin: 0 10px 8px;
+  padding: 10px 12px;
+  border-radius: var(--radius-lg);
+  border: 1px solid color-mix(in srgb, var(--warn) 40%, transparent);
+  background: color-mix(in srgb, var(--warn) 4%, var(--bg-2));
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.pr-title {
+  font-weight: 600;
+  color: var(--warn);
+  font-size: 12px;
+}
+.pr-task {
+  color: var(--text);
+}
+.pr-meta {
+  font-size: 11px;
+  color: var(--text-3);
+}
+.pr-instr {
+  font-size: 12px;
+  color: var(--text-2);
+  white-space: pre-wrap;
+}
+.pr-blocked {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-2);
+}
+.pr-blocked svg {
+  flex: none;
+  margin-top: 2px;
+  color: var(--warn);
+}
+.proposal .actions {
+  margin-top: 6px;
+}
+.dock-compose {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  padding: 10px 12px 6px;
+  border-top: 1px solid var(--line);
+}
+.dock-compose textarea {
+  flex: 1;
+  resize: none;
+  min-height: 34px;
+  max-height: 160px;
+  padding: 8px 10px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--line-2);
+  background: var(--bg-2);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  outline: none;
+}
+.dock-compose textarea:focus {
+  border-color: var(--accent-line);
+}
+.dock-compose .btn.icon {
+  width: 34px;
+  height: 34px;
+}
+/* ---------- orb: still when idle, its rings turn while it works ---------- */
+
+.orb {
+  flex: none;
+  position: relative;
+}
+.orb svg {
+  overflow: visible;
+  display: block;
+}
+.orb-halo {
+  fill: var(--accent);
+  opacity: 0.08;
+}
+.orb-ring,
+.orb-ring2,
+.orb-dot,
+.orb-sat {
+  transform-origin: 50px 50px;
+}
+.orb-ring {
+  opacity: 0.55;
+}
+.orb-dot {
+  opacity: 0;
+}
+.orb-sat {
+  animation: spin 9s linear infinite;
+}
+.orb-thinking .orb-ring,
+.orb-starting .orb-ring {
+  opacity: 1;
+  animation: spin 1.6s linear infinite;
+}
+.orb-tool .orb-ring {
+  opacity: 0.9;
+  animation: spin 3s linear infinite;
+}
+.orb-tool .orb-dot {
+  opacity: 1;
+  animation: spin 1.1s linear infinite;
+}
+/* like every loop, the rings stop while the window is hidden or unfocused (motion.ts) */
+:root[data-motion='paused'] .orb * {
+  animation-play-state: paused !important;
+}
+.orb-error .orb-core {
+  filter: hue-rotate(160deg) saturate(1.6);
+}
+.orb-error .orb-ring {
+  opacity: 0.3;
+}
+
+/* ---------- voice dictation: mic sits in the input, dictated text stays dim until it stops ---------- */
+
+.dock-input {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+}
+.dock-compose .dock-input textarea {
+  padding-right: 38px;
+  line-height: 1.45;
+}
+.dock-mirror {
+  position: absolute;
+  inset: 0;
+  padding: 8px 38px 8px 10px;
+  border: 1px solid transparent;
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text);
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  overflow: hidden;
+  pointer-events: none;
+}
+.dock-input.has-interim textarea {
+  color: transparent;
+  caret-color: var(--text);
+}
+.voice-interim {
+  color: var(--text-2);
+  font-style: italic;
+}
+.mic-wrap {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  z-index: 2;
+}
+.mic-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 26px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+  transition: background-color 0.2s, color 0.2s, padding 0.2s;
+}
+.mic-btn:hover:not(:disabled) {
+  background: var(--bg-4);
+  color: var(--text);
+  transition: none;
+}
+.mic-btn:disabled {
+  color: var(--text-4);
+  cursor: not-allowed;
+}
+.mic-puck {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--radius-sm);
+  transition: background-color 0.2s, color 0.2s;
+}
+.mic-btn.recording,
+.mic-btn.recording:hover {
+  background: var(--danger-soft);
+  color: var(--danger);
+  padding-left: 8px;
+}
+.mic-btn.recording .mic-puck {
+  background: var(--danger);
+  color: var(--bg);
+}
+.mic-tip {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  right: 0;
+  padding: 4px 8px;
+  border: 1px solid var(--line-3);
+  border-radius: var(--radius-sm);
+  background: var(--bg-3);
+  color: var(--text-2);
+  font-size: 11px;
+  white-space: nowrap;
+  box-shadow: var(--shadow-pop);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.1s ease-in;
+}
+.mic-wrap:hover .mic-tip {
+  opacity: 1;
+  visibility: visible;
+  transition-delay: 0.4s;
+}
+.mic-tip.error {
+  opacity: 1;
+  visibility: visible;
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 45%, transparent);
+  white-space: normal;
+  width: max-content;
+  max-width: 280px;
+}
+.mic-tip kbd {
+  margin-left: 6px;
+}
+
+/* ---------- the Corvid strip at the top of the board ---------- */
+
+.cv-strip {
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--line);
+}
+.cv-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+.cv-who {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+.cv-name {
+  font-weight: 600;
+  font-size: 12.5px;
+}
+.cv-switches {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+  flex-wrap: wrap;
+}
+.cv-switches .seg button {
+  padding: 2px 8px;
+  font-size: 11px;
+}
+/* Corvid's effort (#238), only when it isn't Claude Code's default: quiet text beside the model, set in Settings */
+.cv-effort {
+  align-self: center;
+  font-size: 11px;
+  color: var(--text-3);
+}
+.btn.stop {
+  color: var(--danger);
+}
+
+/* ---------- the Agents view: approvals ---------- */
+
+.approvals {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.approvals .proposal {
+  margin: 0;
+  border-color: color-mix(in srgb, var(--warn) 45%, transparent);
+}

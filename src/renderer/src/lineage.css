@@ -1,0 +1,229 @@
+/* The Context cloud view (#203, redrawn in #205, renamed in #209): a 3D node graph on a canvas, a hover label, a corner note and the side
+   panel for the picked node. The canvas has its own dark background; the rest takes the theme tokens. */
+
+.lineage {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.lineage-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg-1);
+  font-size: 12px;
+}
+.lineage-title {
+  font-weight: 600;
+  margin-right: 6px;
+}
+.lineage-bar select,
+.lineage-bar input {
+  font: inherit;
+  font-size: 12px;
+  color: var(--text);
+  background: var(--bg-2);
+  border: 1px solid var(--line-2);
+  border-radius: var(--radius-sm);
+  padding: 3px 6px;
+}
+.lineage-bar input {
+  width: 150px;
+}
+.lineage-count {
+  margin-left: auto;
+  color: var(--text-3);
+}
+
+.lineage-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+.lineage-canvas {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: #070910;
+}
+.lineage-canvas canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+}
+.lineage-empty {
+  position: absolute;
+  left: 50%;
+  top: 36px;
+  transform: translateX(-50%);
+  width: min(560px, calc(100% - 48px));
+  padding: 14px 18px;
+  line-height: 1.5;
+  text-align: left;
+  color: #cfd5e4;
+  background: rgba(7, 9, 16, 0.78);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius, 8px);
+  pointer-events: none;
+}
+.lineage-corner {
+  position: absolute;
+  right: 12px;
+  bottom: 10px;
+  font-size: 11px;
+  color: #9aa3b8;
+  pointer-events: none;
+}
+.lineage-legend {
+  position: absolute;
+  left: 12px;
+  bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: #9aa3b8;
+  pointer-events: none;
+}
+.lineage-legend .lineage-dot {
+  margin-left: 6px;
+}
+.lineage-tip {
+  position: absolute;
+  z-index: 2;
+  max-width: 280px;
+  padding: 6px 9px;
+  font-size: 11.5px;
+  line-height: 1.4;
+  color: #e6eaf3;
+  background: rgba(10, 13, 22, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+  overflow-wrap: anywhere;
+}
+
+.lineage-panel {
+  width: 320px;
+  flex: none;
+  overflow: auto;
+  border-left: 1px solid var(--line);
+  background: var(--bg-1);
+  padding: 12px 14px;
+  font-size: 12px;
+  line-height: 1.45;
+}
+.lineage-panel-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.lineage-panel-head strong {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.lineage-panel h4 {
+  margin: 14px 0 4px;
+  font-size: 11px;
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.lineage-panel p {
+  margin: 0 0 4px;
+}
+.lineage-panel ol {
+  margin: 0;
+  padding-left: 18px;
+}
+.lineage-panel li {
+  margin: 2px 0;
+}
+.lineage-panel table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.lineage-panel td {
+  padding: 2px 0;
+  border-bottom: 1px solid var(--line);
+}
+.lineage-panel td.num {
+  text-align: right;
+  font-family: var(--mono);
+  color: var(--text-2);
+  white-space: nowrap;
+}
+.lineage-panel tr.sum td {
+  border-bottom: none;
+  color: var(--text-3);
+  padding-top: 4px;
+}
+.lineage-dim {
+  color: var(--text-3);
+}
+.lineage-when {
+  color: var(--text-4);
+  font-family: var(--mono);
+  font-size: 10.5px;
+  margin-right: 4px;
+}
+.lineage-link {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: var(--accent);
+  cursor: pointer;
+  text-align: left;
+}
+.lineage-link:hover {
+  text-decoration: underline;
+}
+.lineage-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex: none;
+  background: var(--text-4);
+}
+.lineage-dot.source {
+  background: #f0b45a;
+}
+.lineage-dot.agent {
+  background: #4fd3ff;
+}
+.lineage-dot.agent.corvid {
+  background: #d8c8ff;
+}
+.lineage-dot.artifact {
+  background: #8fe3a8;
+}
+.lineage-dot.artifact.done,
+.lineage-dot.artifact.project {
+  background: #62e68a;
+}
+.lineage-dot.user {
+  background: #ff7ab8;
+}
+.lineage-dot.gone {
+  background: #5a6070;
+}
+/* the project tints (#213): the same values as FOREIGN_COLOR and SHARED_COLOR in lineage/helpers.ts */
+.lineage-dot.foreign {
+  background: #ff7a4d;
+}
+.lineage-dot.shared {
+  background: #a9a6c2;
+}

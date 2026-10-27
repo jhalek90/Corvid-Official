@@ -1,0 +1,592 @@
+/* ---------- agents: Claude terminals as cards; a card can open its terminal, and a tab can hold it ---------- */
+
+.agents {
+  flex: 1;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  container-type: inline-size;
+}
+/* The cards are a column on the left; the message board takes the rest (board.css). */
+.ag-list {
+  flex: none;
+  width: 380px;
+  min-width: 0;
+  overflow-y: auto;
+  padding: 20px 18px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  border-right: 1px solid var(--line);
+}
+.ag-cards {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+.ag-head {
+  align-items: center;
+}
+/* Narrow: cards or board, one at a time, switched with the toggle in either header. */
+.agents.narrow .ag-list {
+  flex: 1;
+  width: auto;
+  border-right: 0;
+}
+.agents.board-only .ag-list {
+  display: none;
+}
+.ag-needs-count {
+  color: var(--warn);
+  font-weight: 600;
+}
+/* The page's one summary line: counts, then usage against the gates, each part once, with dots between. */
+.page-head.ag-head > div:first-child {
+  flex: 1;
+  min-width: 0;
+}
+.ag-summary {
+  display: flex;
+  flex-wrap: wrap;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.ag-summary > * {
+  white-space: nowrap;
+}
+/* the dot trails its part, so a wrapped line never starts with one */
+.ag-summary > :not(:last-child)::after {
+  content: '·';
+  margin: 0 6px;
+  color: var(--text-4);
+  font-weight: 400;
+}
+.ag-summary b {
+  font-weight: 600;
+  color: var(--text-2);
+}
+.ag-summary b.ag-needs-count {
+  color: var(--warn);
+}
+.ag-over {
+  padding: 5px 8px;
+  border: 1px solid color-mix(in srgb, var(--warn) 45%, transparent);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--warn) 9%, transparent);
+  color: var(--warn);
+  font-size: 11.5px;
+  line-height: 1.35;
+}
+.ag-group {
+  margin-top: 10px;
+}
+/* Other sessions (outside Corvid) are read-only: quieter than the agents above them, Needs you still amber. */
+.agcard.ext {
+  background: transparent;
+  border-style: dashed;
+}
+.agcard.ext.waiting,
+.agcard.ext.blocked {
+  border-style: solid;
+  background: var(--warn-soft);
+}
+/* Recent folds away under a label that is also its toggle. */
+.ag-fold {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  text-align: left;
+}
+.ag-fold:hover {
+  color: var(--text);
+}
+.ag-recent {
+  display: flex;
+  flex-direction: column;
+  padding: 0 6px;
+}
+
+/* With a terminal open in a card, a wide view gives the cards more room so it reads at a sensible width. */
+@container (min-width: 1100px) {
+  .agents.has-term .ag-list {
+    width: 480px;
+  }
+}
+
+.ag-empty {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 22px 24px;
+  max-width: 640px;
+}
+.ag-empty-title {
+  color: var(--text);
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+.ag-empty .actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+/* ---------- card ---------- */
+
+/* Description, then activity, then status and context as small details. */
+.agcard {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+  padding: 10px 12px 6px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--line);
+  background: var(--bg-1);
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    background-color 0.15s;
+}
+.agcard:hover {
+  border-color: var(--line-3);
+}
+.agcard:focus-visible {
+  outline: 2px solid var(--accent-line);
+  outline-offset: 1px;
+}
+/* Needs you: the one state meant to pull the eye, in amber. */
+.agcard.waiting,
+.agcard.blocked {
+  border-color: color-mix(in srgb, var(--warn) 50%, transparent);
+}
+.agcard.exited {
+  opacity: 0.7;
+}
+/* Ended (in the folded Ended group): the same card, muted and compact, with a smaller crow. */
+.agcard.ended {
+  --av-card: 28px;
+  gap: 3px;
+  padding: 7px 12px 4px;
+  background: transparent;
+}
+.agcard.ended:not(.term-open) {
+  opacity: 0.65;
+}
+.agcard.ended:not([role]) {
+  cursor: default;
+}
+.agcard.ended:hover {
+  opacity: 1;
+}
+.agcard.ended .ag-head-main {
+  padding-top: 0;
+}
+.agcard.ended .ag-face .dot {
+  display: none;
+}
+.agcard.ended .ag-now {
+  font-size: 11.5px;
+}
+.ag-ended-cards {
+  gap: 6px;
+}
+.agcard.term-open {
+  cursor: default;
+}
+
+.ag-title {
+  min-width: 0;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.35;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow-wrap: anywhere;
+}
+.ag-title b,
+.ag-desc b {
+  color: var(--text-3);
+  font-weight: 600;
+}
+/* the open agent's bar: its crow sits in the title's line without making it taller */
+.ag-title .crow-badge {
+  margin: -3px 6px -2px 0;
+}
+/* A named agent's card: its crow on the left, the name and status word beside it, the task under
+   them. As tall as the name and task were before, so the card gains no row. */
+.ag-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+}
+.ag-face {
+  flex: none;
+  position: relative;
+  display: flex;
+}
+/* the status dot on the crow's corner, ringed in the card's own colour; the word stays by the name */
+.ag-face .dot {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 10px;
+  height: 10px;
+  box-shadow: 0 0 0 2px var(--bg-1);
+}
+.ag-face .dot.idle {
+  background: var(--bg-1);
+}
+.ag-face .dot.waiting {
+  right: 1px;
+  bottom: 1px;
+}
+.ag-head-main {
+  flex: 1;
+  min-width: 0;
+  padding-top: 2px;
+}
+.ag-title.ag-name {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.ag-name > span:first-child {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ag-name .ag-status {
+  font-size: 11px;
+  font-weight: 500;
+}
+.ag-name .ag-status.needs {
+  font-weight: 600;
+}
+.ag-head .ag-desc {
+  margin-top: 1px;
+}
+/* The task under a goofy name. */
+.ag-desc {
+  min-width: 0;
+  margin-top: -2px;
+  color: var(--text-2);
+  font-size: 12px;
+  line-height: 1.4;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow-wrap: anywhere;
+}
+
+.ag-now {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--text-3);
+}
+.ag-now svg {
+  flex: none;
+}
+.ag-now .lbl {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ag-now b {
+  color: var(--text-2);
+  font-weight: 600;
+}
+.ag-now.busy {
+  color: var(--text-2);
+}
+.ag-now.busy svg {
+  color: var(--accent);
+}
+.ag-now.warn {
+  color: var(--warn);
+}
+
+/* pinned to the bottom, so cards sharing a grid row line their details up */
+.ag-foot {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 24px;
+  min-width: 0;
+  font-size: 11px;
+  color: var(--text-3);
+}
+/* a worker's branch: quiet, the first thing to shorten; amber when it needs a look (kept unmerged, held open) */
+.ag-branch {
+  min-width: 14px;
+  /* the first thing in the details to give way, down to its icon */
+  flex: 0 1000 auto;
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10.5px;
+  color: var(--text-4);
+}
+.ag-branch svg {
+  flex: none;
+}
+.ag-branch .b {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ag-branch .st {
+  flex: none;
+}
+.ag-branch .st::before {
+  content: '· ';
+}
+.ag-branch.attn {
+  color: var(--warn);
+}
+/* the agent's model (#234): as quiet as the branch, and next to give way after it, down to nothing */
+.ag-model {
+  min-width: 0;
+  flex: 0 100 auto;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text-3);
+}
+/* Fable costs the most: a faint tint of the accent, nothing louder */
+.ag-model.fable {
+  color: color-mix(in srgb, var(--accent) 65%, var(--text-3));
+}
+.ag-proj {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* a finished agent's countdown to closing, or why it stays open: quiet text, no glow (#70) */
+.ag-closing {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ag-closing .btn {
+  height: 20px;
+  padding: 0 6px;
+  font-size: 11px;
+  color: var(--text-3);
+}
+.ag-closing .btn:hover {
+  color: var(--text);
+}
+.ag-actions {
+  margin-left: auto;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.ag-actions .btn {
+  color: var(--text-4);
+}
+.ag-actions .btn:hover {
+  color: var(--text);
+}
+
+/* One dot (a diamond for Needs you) and one word. */
+.ag-status {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  color: var(--text-3);
+}
+.ag-status.busy {
+  color: var(--text-2);
+}
+.ag-status.needs {
+  color: var(--warn);
+  font-weight: 600;
+}
+
+/* ---------- an agent's terminal inside its card ---------- */
+
+/* Under the card's own rows, set off by a hairline, so it reads as part of the same card. */
+.ag-term {
+  margin: 4px -6px 0;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+  cursor: auto;
+}
+/* About 14 lines; the corner handle makes it taller or shorter. */
+.term-slot {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+}
+.ag-term-slot {
+  height: 226px;
+  min-height: 110px;
+  max-height: 70vh;
+  padding: 6px 2px 4px 8px;
+  border-radius: var(--radius);
+  background: var(--bg);
+  overflow: hidden;
+  resize: vertical;
+}
+.ag-term-tools,
+.ag-term-note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 26px;
+  font-size: 11.5px;
+  color: var(--text-3);
+}
+.ag-term-tools {
+  justify-content: flex-end;
+}
+.ag-term-tools .btn {
+  color: var(--text-3);
+}
+.ag-term-tools .btn:hover {
+  color: var(--text);
+}
+.ag-term-tools .lbl,
+.ag-term-note .lbl {
+  margin-right: auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.ag-term-note {
+  padding: 4px 2px 6px;
+}
+
+/* ---------- an agent's terminal in its own tab ---------- */
+
+.ag-tab {
+  display: flex;
+  flex-direction: column;
+}
+.ag-tab-term {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+  padding: 10px 6px 6px 14px;
+  background: var(--bg);
+}
+.ag-tab-term > .term-slot {
+  flex: 1;
+}
+.ag-bar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 7px 10px 7px 14px;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg-1);
+}
+.ag-bar.waiting,
+.ag-bar.blocked {
+  background: color-mix(in srgb, var(--warn) 4%, var(--bg-1));
+  border-bottom-color: color-mix(in srgb, var(--warn) 45%, transparent);
+}
+.ag-bar-main {
+  flex: 1;
+  min-width: 0;
+}
+.ag-bar .ag-title {
+  display: block;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.ag-real {
+  color: var(--text-3);
+  font-weight: 400;
+}
+.ag-bar-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 11.5px;
+  color: var(--text-3);
+}
+.ag-bar-meta > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+.ag-bar .ag-status {
+  font-size: 11.5px;
+}
+/* The agent stopped: its last output stays above, this says so plainly. */
+.ag-ended {
+  flex: none;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 7px 10px 7px 14px;
+  border-top: 1px solid var(--line);
+  background: var(--bg-1);
+  color: var(--text-3);
+  font-size: 12px;
+}
+.ag-ended b {
+  color: var(--text);
+  font-weight: 600;
+}
+.ag-ended .lbl {
+  margin-right: auto;
+}
+/* The tab strip's agent tab: its crow, its name, a small status dot. */
+.ptab.term .crow-badge {
+  flex: none;
+}
+.ptab.term .dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+}
+
+@container (max-width: 520px) {
+  .ag-list {
+    padding: 16px 14px 28px;
+  }
+}
+
+.rail-btn .badge.warn {
+  background: var(--warn);
+  border-color: transparent;
+  color: var(--bg-1);
+}

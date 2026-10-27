@@ -1,0 +1,56 @@
+---
+format: 1
+id: test-clean-large
+name: Board message threads
+version: 1.0.0
+author: Test Corpus
+description: A fake test extension: reply threads on board messages.
+built_on: 0.1.0 @ 037fab4
+effort: medium
+capabilities.tier: 2
+capabilities.core_areas: board, ui
+capabilities.rebuild: yes
+---
+
+## Summary
+
+Lets the user and agents reply to a board message in a thread, so long conversations stay readable.
+
+## What it does
+
+Each board message gets a reply count and a Replies link. Opening it shows the thread under the message, oldest first, with a reply box for the user.
+
+### Data
+
+A reply is an ordinary board message with an optional parent id. Messages without a parent load exactly as before, and the expiry rule applies to replies the same way.
+
+### Screens
+
+The board list shows top-level messages only, each with its reply count. The thread opens inline. A thread with new replies shows a small dot until it is opened.
+
+### Agents
+
+Agents can reply to a message by passing its id, through the existing post tool's reply field. No new tool is added.
+
+## Seed prompt
+
+Add reply threads to Corvid's message board.
+
+Store an optional parent message id on a board message. When a message is posted with a reply field, set the parent to the root of that thread, so threads are one level deep.
+
+In the board view, show only messages without a parent in the main list. Under each, show "N replies" when it has any. Clicking it expands the thread inline, oldest first, with a reply box at the bottom that posts as the user with the parent set.
+
+Mark a thread that has replies newer than the last time the user opened it with a small dot. Keep the read marker in memory and in the existing board state file.
+
+Keep the existing expiry: a reply expires on its own date. If a parent expires before its replies, show the replies under a placeholder "Earlier message expired".
+
+Do not change the tools agents use beyond honouring the reply field that already exists. Keep the style consistent with the current board, in both themes and in a narrow window.
+
+## Acceptance checks
+
+1. Replying to a message shows the reply in a thread under it.
+2. The main list shows only top-level messages.
+3. Reply counts are correct after a restart.
+4. Old messages without a parent load as before.
+5. An expired parent shows a placeholder.
+6. The thread works in both themes and a narrow window.

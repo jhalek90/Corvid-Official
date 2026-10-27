@@ -1,0 +1,344 @@
+/* ---------- file explorer ---------- */
+
+.explorer {
+  display: flex;
+  min-height: 0;
+  border-right: 1px solid var(--line);
+  background: var(--bg-1);
+}
+.fx-main {
+  position: relative;
+  width: var(--w-explorer, 260px);
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.fx-head {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 10px 8px 6px 14px;
+}
+.fx-title {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.fx-pick {
+  padding: 0 10px 6px;
+}
+.fx-pick select.select {
+  width: 100%;
+}
+.fx-tools {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 6px 6px 14px;
+  border-bottom: 1px solid var(--line);
+}
+.fx-tools .btn.icon.sm {
+  width: 24px;
+  height: 22px;
+}
+.fx-path {
+  flex: 1;
+  min-width: 0;
+  height: 22px;
+  margin-left: -6px;
+  padding: 0 5px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  outline: none;
+  font-size: 11px;
+  color: var(--text-4);
+  text-overflow: ellipsis;
+}
+.fx-path::placeholder {
+  color: var(--text-4);
+}
+.fx-path:hover {
+  border-color: var(--line-2);
+}
+.fx-path:focus {
+  border-color: var(--accent-line);
+  background: var(--bg-2);
+  color: var(--text);
+}
+.fx-tree {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 4px 0 12px;
+}
+.fx-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 24px;
+  padding-right: 6px;
+  color: var(--text-2);
+  font-size: 12px;
+  cursor: pointer;
+  outline: none;
+  white-space: nowrap;
+}
+.fx-row:hover {
+  background: var(--bg-3);
+  color: var(--text);
+}
+.fx-row:focus-visible {
+  box-shadow: inset 0 0 0 1px var(--accent-line);
+}
+.fx-row.sel {
+  background: var(--accent-soft);
+  color: var(--text);
+}
+.fx-row.dim {
+  color: var(--text-4);
+}
+.fx-row.dim:hover {
+  color: var(--text-2);
+}
+.fx-chev {
+  flex: none;
+  color: var(--text-4);
+  transition: transform 0.12s;
+}
+.fx-chev.open {
+  transform: rotate(90deg);
+}
+.fx-icon {
+  flex: none;
+  color: var(--text-4);
+}
+.fx-row.dir .fx-icon {
+  color: var(--text-3);
+}
+.fx-row.sel .fx-icon {
+  color: var(--accent);
+}
+.fx-row.dim .fx-icon {
+  opacity: 0.5;
+}
+.fx-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.fx-act {
+  flex: none;
+  display: none;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+}
+.fx-row:hover .fx-act {
+  display: grid;
+}
+.fx-act:hover {
+  background: var(--bg-4);
+  color: var(--text);
+}
+.fx-note {
+  height: 22px;
+  display: flex;
+  align-items: center;
+  padding-right: 8px;
+  font-size: 11.5px;
+  color: var(--text-4);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.fx-note.err {
+  color: var(--danger);
+}
+
+/* ---------- right-click menu ---------- */
+
+.menu.fx-menu {
+  position: fixed;
+  z-index: 60;
+  min-width: 200px;
+}
+
+/* ---------- preview pane: a second column inside the same panel ---------- */
+
+.fx-preview {
+  position: relative;
+  width: var(--w-preview, clamp(320px, 34vw, 640px));
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  border-left: 1px solid var(--line);
+  background: var(--bg);
+}
+.fx-pv-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 8px 2px 12px;
+}
+.fx-pv-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text);
+}
+.fx-pv-size {
+  flex: none;
+  font-size: 11px;
+  color: var(--text-4);
+}
+.fx-pv-path {
+  padding: 0 12px 7px;
+  border-bottom: 1px solid var(--line);
+  font-size: 11px;
+  color: var(--text-4);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fx-code {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: flex-start;
+  overflow: auto;
+}
+.fx-code pre {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 18px;
+  white-space: pre;
+  tab-size: 4;
+  /* Show the file's characters as written: no => arrows. */
+  font-variant-ligatures: none;
+}
+.fx-gutter {
+  position: sticky;
+  left: 0;
+  flex: none;
+  min-height: 100%;
+  padding: 8px 10px 16px 12px;
+  text-align: right;
+  color: var(--text-4);
+  background: var(--bg);
+  border-right: 1px solid var(--line);
+  user-select: none;
+}
+.fx-text {
+  flex: 1;
+  padding: 8px 16px 16px 12px;
+  color: var(--text-2);
+  user-select: text;
+}
+/* highlight.js classes, coloured through the --syn-* theme tokens. */
+:is(.fx-text, .docs-code) .hljs-keyword,
+:is(.fx-text, .docs-code) .hljs-selector-tag,
+:is(.fx-text, .docs-code) .hljs-variable.language_,
+:is(.fx-text, .docs-code) .hljs-meta .hljs-keyword {
+  color: var(--syn-keyword);
+}
+:is(.fx-text, .docs-code) .hljs-string,
+:is(.fx-text, .docs-code) .hljs-code,
+:is(.fx-text, .docs-code) .hljs-regexp,
+:is(.fx-text, .docs-code) .hljs-char.escape_,
+:is(.fx-text, .docs-code) .hljs-addition,
+:is(.fx-text, .docs-code) .hljs-meta .hljs-string {
+  color: var(--syn-string);
+}
+:is(.fx-text, .docs-code) .hljs-number,
+:is(.fx-text, .docs-code) .hljs-literal,
+:is(.fx-text, .docs-code) .hljs-symbol,
+:is(.fx-text, .docs-code) .hljs-bullet,
+:is(.fx-text, .docs-code) .hljs-link {
+  color: var(--syn-number);
+}
+:is(.fx-text, .docs-code) .hljs-comment,
+:is(.fx-text, .docs-code) .hljs-quote,
+:is(.fx-text, .docs-code) .hljs-meta {
+  color: var(--syn-comment);
+}
+:is(.fx-text, .docs-code) .hljs-comment,
+:is(.fx-text, .docs-code) .hljs-quote {
+  font-style: italic;
+}
+:is(.fx-text, .docs-code) .hljs-title,
+:is(.fx-text, .docs-code) .hljs-section,
+:is(.fx-text, .docs-code) .hljs-selector-id {
+  color: var(--syn-title);
+}
+:is(.fx-text, .docs-code) .hljs-type,
+:is(.fx-text, .docs-code) .hljs-built_in,
+:is(.fx-text, .docs-code) .hljs-title.class_,
+:is(.fx-text, .docs-code) .hljs-selector-class,
+:is(.fx-text, .docs-code) .hljs-selector-pseudo {
+  color: var(--syn-type);
+}
+:is(.fx-text, .docs-code) .hljs-attr,
+:is(.fx-text, .docs-code) .hljs-attribute,
+:is(.fx-text, .docs-code) .hljs-property,
+:is(.fx-text, .docs-code) .hljs-variable,
+:is(.fx-text, .docs-code) .hljs-template-variable,
+:is(.fx-text, .docs-code) .hljs-selector-attr {
+  color: var(--syn-attr);
+}
+:is(.fx-text, .docs-code) .hljs-tag,
+:is(.fx-text, .docs-code) .hljs-name,
+:is(.fx-text, .docs-code) .hljs-deletion {
+  color: var(--syn-tag);
+}
+:is(.fx-text, .docs-code) .hljs-section,
+:is(.fx-text, .docs-code) .hljs-strong {
+  font-weight: 600;
+}
+:is(.fx-text, .docs-code) .hljs-emphasis {
+  font-style: italic;
+}
+.fx-img {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  overflow: hidden;
+}
+/* Fit the pane without upscaling small images; the checkerboard shows where it's transparent. */
+.fx-img img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  background: repeating-conic-gradient(var(--line) 0 25%, transparent 0 50%) 0 0 / 16px 16px;
+}
+.fx-pv-note {
+  padding: 14px 12px;
+  font-size: 12px;
+  color: var(--text-4);
+}
+.fx-pv-note.err {
+  color: var(--danger);
+}
+.fx-pv-foot {
+  padding: 6px 12px;
+  border-top: 1px solid var(--line);
+  font-size: 11px;
+  color: var(--text-4);
+}

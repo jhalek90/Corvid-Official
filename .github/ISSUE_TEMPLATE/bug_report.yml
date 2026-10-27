@@ -1,0 +1,71 @@
+name: Bug report
+description: Something in Corvid doesn't work the way it should.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. Found a security problem? Don't open an issue: follow [SECURITY.md](https://github.com/jhalek90/Corvid-Official/blob/main/SECURITY.md) instead.
+
+        Never paste passwords, tokens, keys, or anything from your Corvid data folder or `~/.claude` other than `deploy.log` and `crash.log`. Read each log before you attach it.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open the Agents view
+        2. ...
+    validations:
+      required: false
+  - type: input
+    id: os
+    attributes:
+      label: OS and version
+      description: For Linux, also the desktop and session type (`echo $XDG_CURRENT_DESKTOP $XDG_SESSION_TYPE`).
+      placeholder: Windows 11 23H2 / macOS 15.1 (Apple Silicon) / Ubuntu 24.04 GNOME Wayland
+    validations:
+      required: true
+  - type: input
+    id: node
+    attributes:
+      label: Node.js version
+      description: Output of `node --version`.
+    validations:
+      required: true
+  - type: input
+    id: npm
+    attributes:
+      label: npm version
+      description: Output of `npm --version`.
+    validations:
+      required: true
+  - type: input
+    id: claude
+    attributes:
+      label: Claude Code version
+      description: Output of `claude --version`.
+    validations:
+      required: true
+  - type: input
+    id: build
+    attributes:
+      label: Corvid build
+      description: The build line in Settings (`Corvid v… · build <commit>`), or `git rev-parse --short HEAD` in your clone. Say if your copy has changes of its own.
+      placeholder: Corvid v0.1.0 · build abc1234
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs and screenshots
+      description: Error messages, the relevant lines of `crash.log` or `deploy.log` from your data folder, or a screenshot.
+      render: text
+    validations:
+      required: false

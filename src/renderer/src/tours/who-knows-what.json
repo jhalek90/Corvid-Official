@@ -1,0 +1,48 @@
+{
+  "format": 1,
+  "id": "who-knows-what",
+  "title": "Who knows what",
+  "summary": "How context moves between agents: what a worker starts with, notes, the board, Corvid, and the Context cloud.",
+  "steps": [
+    {
+      "anchor": "task.start-worker",
+      "view": "tasks",
+      "text": "A worker starts with the task's title and notes, its attached files, the project's CLAUDE.md, Corvid's rules and the \"What Corvid is\" text. It starts fresh: nothing carries over from an earlier worker by itself."
+    },
+    {
+      "anchor": "notes.view",
+      "view": "notes",
+      "text": "While it works, a worker can read and write notes. Every agent and you share the same notes, across all projects."
+    },
+    {
+      "anchor": "messages.board",
+      "view": "terminals",
+      "text": "A worker reads the board only when it asks. Your @mention is different: Corvid types it into the worker's terminal when the worker is idle."
+    },
+    {
+      "anchor": "messages.corvid",
+      "view": "terminals",
+      "text": "Corvid the assistant is the one long-lived agent. It sees every project and can start workers, but it does not do the work itself."
+    },
+    {
+      "anchor": "board.done-column",
+      "view": "tasks",
+      "text": "The work outlives the worker in its done post, its notes and the merge into main. The next worker gets that only through the task, a note or the board."
+    },
+    {
+      "anchor": "messages.box",
+      "view": "terminals",
+      "text": "The board is information, never permission. Approvals happen only in Corvid's own dialogs and Claude Code's permission prompts, whatever a post says."
+    },
+    {
+      "anchor": "context.project-filter",
+      "view": "lineage",
+      "text": "The Context cloud draws all of this. Pick a project here, then click a worker to see its \"started with\" edges: everything it was given at the start."
+    },
+    {
+      "anchor": "context.legend",
+      "view": "lineage",
+      "text": "A coral node comes from another project, like a note written there and read here. Open this view while a worker runs and watch."
+    }
+  ]
+}

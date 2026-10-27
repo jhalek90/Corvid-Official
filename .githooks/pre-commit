@@ -1,0 +1,4 @@
+#!/bin/sh
+# Blocks commits that contain secrets or connection files. Installed by `npm install`
+# (scripts/install-hooks.mjs sets core.hooksPath to .githooks).
+exec node scripts/secret-scan.mjs

@@ -1,0 +1,873 @@
+/* ---------- crow mascot ----------
+   One fixed element whose transform crow.ts moves; the feet sit at its origin. Only the bird's
+   painted shapes take the pointer, and only while it's perched: everywhere else, and in flight,
+   clicks, wheel and drags go straight through to the app. Poses come from data-pose, one-off
+   fidgets from f-* classes, and the facing from .left on the flip group. */
+
+.crow {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+  z-index: 35; /* over panels, under menus and popups (40+), dialogs (100), toasts (200) and context menus (300) */
+  pointer-events: none;
+  will-change: transform;
+}
+.crow[hidden] {
+  display: none;
+}
+/* the board's @ popup sits low in its own panel's stacking, so the birds step aside while it's open */
+:root:has(.mb-mentions) .crow:not(.crow-preview) {
+  visibility: hidden;
+}
+.crow-svg {
+  position: absolute;
+  left: -22px;
+  top: -35px;
+  overflow: visible;
+  pointer-events: none;
+  filter: drop-shadow(0 0 0.7px var(--crow-rim)) drop-shadow(0 1px 1.5px var(--crow-shade));
+}
+.crow .hit {
+  pointer-events: visiblePainted;
+}
+.crow[data-pose='fly'] .hit,
+.crow[data-pose='glide'] .hit,
+.crow.passive .hit {
+  pointer-events: none;
+}
+/* an agent bird's click pad: transparent still counts as painted, so it takes clicks by the rules above */
+.crow .hit-pad {
+  fill: transparent;
+}
+
+.crow .c-body {
+  fill: var(--crow-body);
+}
+.crow .c-wing {
+  fill: var(--crow-wing);
+}
+.crow .c-beak {
+  fill: var(--crow-beak);
+}
+.crow .c-eye {
+  fill: var(--crow-eye);
+}
+.crow .c-sheen {
+  fill: none;
+  stroke: var(--crow-sheen);
+  stroke-width: 0.8;
+  stroke-linecap: round;
+}
+.crow .c-leg {
+  fill: none;
+  stroke: var(--crow-beak);
+  stroke-width: 1.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* hats and accessories, on the mascot and the avatar alike: c-trim parts follow the crow's accent
+   (the sheen, made solid), and crowLook.ts swaps --crow-trim for a custom one */
+:root {
+  --crow-trim: #8a9fe6;
+}
+:root[data-theme='light'],
+:root[data-theme-kind='light'] {
+  --crow-trim: #5468bd;
+}
+.c-trim {
+  fill: var(--crow-trim);
+}
+.c-glasses {
+  fill: none;
+  stroke: var(--crow-trim);
+  stroke-width: 0.5;
+  stroke-linecap: round;
+}
+.c-glasses circle {
+  fill: rgba(255, 255, 255, 0.14);
+}
+.c-bowtie {
+  fill: var(--crow-trim);
+  stroke: rgba(0, 0, 0, 0.25);
+  stroke-width: 0.3;
+  stroke-linejoin: round;
+}
+
+/* the editor's preview: the same bird in the page flow, scaled up, and never clickable */
+.crow.crow-preview {
+  position: relative;
+  z-index: auto;
+  flex: none;
+  will-change: auto;
+}
+.crow-preview .crow-svg {
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+}
+.crow-preview .hit {
+  pointer-events: none;
+}
+
+/* pivots, in the 44x36 viewBox */
+.crow .flip {
+  transform-origin: 22px 0;
+  transition: transform 0.12s ease-out;
+}
+.crow .flip.left {
+  transform: scaleX(-1);
+}
+.crow .bird {
+  transform-origin: 22px 35px;
+  transition: transform 0.14s ease-out;
+}
+.crow .head {
+  transform-origin: 28.5px 16px;
+  transition: transform 0.18s ease-out;
+}
+.crow .legs {
+  transform-origin: 22px 27px;
+  transition: transform 0.12s, opacity 0.12s;
+}
+.crow .leg-a {
+  transform-origin: 20px 27px;
+}
+.crow .leg-b {
+  transform-origin: 23.6px 27px;
+}
+.crow .c-tail {
+  transform-origin: 12px 23px;
+}
+.crow .c-eye {
+  transform-origin: 31.8px 11.3px;
+}
+.crow .wing-up {
+  display: none;
+  transform-origin: 25px 17.5px;
+}
+
+/* ---------- poses ---------- */
+
+.crow[data-pose='crouch'] .bird,
+.crow[data-pose='land'] .bird {
+  transform: scaleY(0.88);
+}
+.crow[data-pose='land'] .wing-up {
+  display: inline;
+  transform: scaleY(0.35);
+}
+.crow[data-pose='land'] .wing-fold {
+  display: none;
+}
+.crow[data-pose='hop'] .legs {
+  transform: scaleY(0.7);
+}
+.crow[data-pose='walk'] .leg-a {
+  animation: crow-step 0.3s ease-in-out infinite alternate;
+}
+.crow[data-pose='walk'] .leg-b {
+  animation: crow-step 0.3s ease-in-out infinite alternate-reverse;
+}
+.crow[data-pose='fly'] .bird,
+.crow[data-pose='glide'] .bird {
+  transform: rotate(15deg);
+}
+.crow[data-pose='fly'] .legs,
+.crow[data-pose='glide'] .legs {
+  opacity: 0;
+}
+.crow[data-pose='fly'] .wing-fold,
+.crow[data-pose='glide'] .wing-fold {
+  display: none;
+}
+.crow[data-pose='fly'] .wing-up {
+  display: inline;
+  animation: crow-flap 0.14s ease-in-out infinite alternate;
+}
+.crow[data-pose='glide'] .wing-up {
+  display: inline;
+  transform: scaleY(0.3);
+}
+
+/* ---------- fidgets while perched ---------- */
+
+.crow.f-tilt .head {
+  animation: crow-tilt 1.3s ease-in-out;
+}
+.crow.f-preen .head {
+  animation: crow-preen 1.5s ease-in-out;
+}
+.crow.f-blink .c-eye {
+  animation: crow-blink 0.18s;
+}
+.crow.f-ruffle .hit {
+  animation: crow-ruffle 0.45s ease-in-out;
+  transform-origin: 18px 26px;
+}
+.crow.f-tail .c-tail {
+  animation: crow-tail 0.4s ease-in-out;
+}
+
+/* a busy agent's bird pecks at its perch; one that needs the user flutters its wings now and then */
+.crow.f-peck .head {
+  animation: crow-peck 0.9s ease-in-out;
+}
+.crow.f-flutter .wing-fold {
+  display: none;
+}
+.crow.f-flutter .wing-up {
+  display: inline;
+  animation: crow-flap 0.15s ease-in-out 6 alternate;
+}
+.crow.f-flutter .bird {
+  transform: translateY(-1.5px);
+}
+
+/* ---------- agents' birds ----------
+   The same bird a size smaller than Corvid's, in the agent's own colours (inline custom properties,
+   so the user's look never reaches them). It fades out when it can't fly off. */
+.crow.agent-bird .crow-svg {
+  transform: scale(0.8);
+  transform-origin: 22px 35px;
+}
+.crow.agent-bird {
+  opacity: 1;
+  transition: opacity 0.2s;
+}
+.crow.agent-bird.fading {
+  opacity: 0;
+}
+@starting-style {
+  .crow.agent-bird {
+    opacity: 0;
+  }
+}
+/* where a double-click on a bird lands */
+.agcard.bird-picked {
+  outline: 2px solid var(--accent-line);
+  outline-offset: 2px;
+}
+
+/* infinite loops only run while moving; stop them outright when the window isn't in use */
+.crow.paused,
+.crow.paused * {
+  animation-play-state: paused !important;
+}
+
+@keyframes crow-step {
+  from {
+    transform: rotate(-14deg);
+  }
+  to {
+    transform: rotate(14deg);
+  }
+}
+@keyframes crow-flap {
+  from {
+    transform: scaleY(1);
+  }
+  to {
+    transform: scaleY(-0.6);
+  }
+}
+@keyframes crow-tilt {
+  0%,
+  100% {
+    transform: none;
+  }
+  25%,
+  55% {
+    transform: rotate(-16deg);
+  }
+  75% {
+    transform: rotate(7deg);
+  }
+}
+@keyframes crow-preen {
+  0%,
+  100% {
+    transform: none;
+  }
+  25%,
+  45%,
+  65% {
+    transform: translate(-3px, 3px) rotate(50deg);
+  }
+  35%,
+  55% {
+    transform: translate(-3px, 3.6px) rotate(56deg);
+  }
+}
+@keyframes crow-peck {
+  0%,
+  100% {
+    transform: none;
+  }
+  20%,
+  50% {
+    transform: rotate(24deg) translate(1px, 1.5px);
+  }
+  35%,
+  65% {
+    transform: rotate(8deg);
+  }
+}
+@keyframes crow-blink {
+  50% {
+    transform: scaleY(0.15);
+  }
+}
+@keyframes crow-ruffle {
+  25%,
+  75% {
+    transform: scale(1.05, 1.07);
+  }
+  50% {
+    transform: scale(0.98, 1.04);
+  }
+}
+@keyframes crow-tail {
+  50% {
+    transform: rotate(-12deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .crow *,
+  .crow {
+    animation: none !important;
+    transition: none !important;
+  }
+  /* the one thing that still moves: an agent's bird fading in and out */
+  .crow.agent-bird {
+    transition: opacity 0.2s !important;
+  }
+}
+
+/* ---------- the assistant's avatar ----------
+   The same crow's head and shoulders in a disc. av-* on the root picks the pose and --av the rim
+   colour. Every pose is a plain transform first and an animation second, so reduced motion keeps
+   the pose and drops the movement. Pivots are in the mascot's 44x36 coordinates. */
+
+.crow-av {
+  flex: none;
+  position: relative;
+  --av: var(--accent);
+}
+.crow-av svg {
+  display: block;
+  overflow: visible;
+}
+.crow-av .av-disc {
+  fill: color-mix(in srgb, var(--av) 10%, var(--bg));
+}
+.crow-av .av-rim {
+  fill: none;
+  stroke: var(--av);
+  stroke-width: 0.9;
+  stroke-opacity: 0.4;
+  transition:
+    stroke 0.3s,
+    stroke-opacity 0.3s;
+}
+.crow-av .av-pip {
+  stroke: var(--bg-1);
+  stroke-width: 1;
+}
+.crow-av .av-bust {
+  filter: drop-shadow(0 0 0.8px var(--crow-rim));
+  transition: transform 0.3s ease-out;
+}
+.crow-av .c-body {
+  fill: var(--crow-av-body);
+}
+.crow-av .c-wing {
+  fill: var(--crow-av-wing);
+}
+.crow-av .c-beak {
+  fill: var(--crow-av-beak);
+}
+.crow-av .c-eye {
+  fill: var(--crow-eye);
+}
+.crow-av .c-sheen {
+  fill: none;
+  stroke: var(--crow-sheen);
+  stroke-width: 0.8;
+  stroke-linecap: round;
+}
+.crow-av .av-tuft {
+  display: none;
+  fill: none;
+  stroke: var(--crow-av-body);
+  stroke-width: 1.1;
+  stroke-linecap: round;
+}
+.crow-av .av-head {
+  transform-origin: 28.5px 16px;
+  transition: transform 0.3s ease-out;
+}
+.crow-av .av-eye {
+  transform-origin: 31.8px 11.3px;
+  transition: transform 0.2s;
+}
+.crow-av .av-jaw {
+  transform-origin: 34.6px 13.4px;
+  transform: rotate(var(--beak));
+  transition: transform 0.08s linear;
+}
+
+/* ready: calm, an occasional blink and now and then a small tilt; one-off runs that CrowHead starts
+   on a timer (motion.ts), so nothing ticks in between */
+.crow-av.av-idle.blink .av-eye {
+  animation: av-blink 0.28s;
+}
+.crow-av.av-idle.tilt .av-head {
+  animation: av-tilt 3s ease-in-out;
+}
+
+/* thinking: head cocked, eyes darting about */
+.crow-av.av-thinking,
+.crow-av.av-starting,
+.crow-av.av-tool,
+.crow-av.av-listening {
+  --av: var(--accent);
+}
+.crow-av.av-thinking .av-rim,
+.crow-av.av-starting .av-rim,
+.crow-av.av-tool .av-rim,
+.crow-av.av-listening .av-rim {
+  stroke-opacity: 0.9;
+}
+.crow-av.av-thinking .av-head,
+.crow-av.av-starting .av-head {
+  transform: rotate(-6deg);
+}
+.crow-av.av-thinking .av-eye,
+.crow-av.av-starting .av-eye {
+  animation: av-dart 1.9s infinite;
+}
+
+/* working: pecking away */
+.crow-av.av-tool .av-head {
+  transform: rotate(8deg);
+  animation: av-peck 0.85s ease-in-out infinite;
+}
+
+/* waiting on an approval: sat up, eye wide, glancing about */
+.crow-av.av-waiting {
+  --av: var(--warn);
+}
+.crow-av.av-waiting .av-rim {
+  stroke-opacity: 0.85;
+}
+.crow-av.av-waiting .av-bust {
+  transform: translateY(-0.8px);
+}
+.crow-av.av-waiting .av-head {
+  transform: rotate(-12deg);
+  animation: av-glance 2.6s infinite;
+}
+.crow-av.av-waiting .av-eye {
+  transform: scale(1.3);
+}
+
+/* dictating: head cocked towards you, beak moving with the mic */
+.crow-av.av-listening .av-head {
+  transform: rotate(-15deg);
+}
+
+/* error: drooped and ruffled, eye half shut; one shiver on the way in */
+.crow-av.av-error {
+  --av: var(--danger);
+}
+.crow-av.av-error .av-rim {
+  stroke-opacity: 0.8;
+}
+.crow-av.av-error .av-bust {
+  transform: translateY(0.8px);
+  animation: av-shiver 0.5s ease-in-out;
+}
+.crow-av.av-error .av-head {
+  transform: rotate(24deg);
+}
+.crow-av.av-error .av-eye {
+  transform: scaleY(0.45);
+}
+.crow-av.av-error .av-tuft {
+  display: inline;
+}
+
+.crow-av.paused *,
+:root[data-motion='paused'] .crow-av *,
+:root[data-motion='paused'] .crow-badge * {
+  animation-play-state: paused !important;
+}
+
+@keyframes av-blink {
+  0%,
+  100% {
+    transform: none;
+  }
+  40% {
+    transform: scaleY(0.1);
+  }
+}
+@keyframes av-tilt {
+  0%,
+  100% {
+    transform: none;
+  }
+  26%,
+  74% {
+    transform: rotate(-10deg);
+  }
+}
+@keyframes av-dart {
+  0%,
+  22% {
+    transform: none;
+  }
+  27%,
+  48% {
+    transform: translate(0.7px, -0.3px);
+  }
+  53%,
+  72% {
+    transform: translate(-0.6px, 0.2px);
+  }
+  77%,
+  100% {
+    transform: translate(0.3px, 0.4px);
+  }
+}
+@keyframes av-peck {
+  0%,
+  100% {
+    transform: rotate(-2deg);
+  }
+  45% {
+    transform: rotate(14deg) translateY(0.5px);
+  }
+}
+@keyframes av-glance {
+  0%,
+  40% {
+    transform: rotate(-12deg);
+  }
+  46%,
+  86% {
+    transform: rotate(-5deg) translateX(0.4px);
+  }
+  92%,
+  100% {
+    transform: rotate(-12deg);
+  }
+}
+@keyframes av-shiver {
+  20%,
+  60% {
+    transform: translate(-0.4px, 0.8px);
+  }
+  40%,
+  80% {
+    transform: translate(0.4px, 0.8px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .crow-av *,
+  .crow-av {
+    animation: none !important;
+    transition: none !important;
+  }
+  .crow-av .av-jaw {
+    transform: none;
+  }
+}
+
+/* ---------- Settings → Appearance: the crow look editor ---------- */
+
+.crow-editor {
+  padding: 14px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.ce-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+}
+.ce-head .d {
+  color: var(--text-3);
+  font-size: 12px;
+  margin-top: 2px;
+}
+.ce-body {
+  display: flex;
+  gap: 22px;
+  flex-wrap: wrap;
+}
+/* the preview sits on the page background, so it reads the way the crow does on the app */
+.ce-stage {
+  flex: none;
+  width: 240px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 10px 12px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: var(--bg);
+}
+.ce-perch {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  height: 128px;
+  width: 100%;
+  border-bottom: 1px solid var(--line-2);
+}
+.ce-stage .seg {
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.ce-avatars {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin-top: 4px;
+}
+.ce-controls {
+  flex: 1;
+  min-width: 300px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.ce-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.ce-label {
+  width: 104px;
+  flex: none;
+  font-size: 12.5px;
+  color: var(--text-2);
+}
+.ce-swatches,
+.ce-hats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.ce-sw {
+  position: relative;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid var(--line-3);
+  cursor: pointer;
+  flex: none;
+}
+.ce-sw.on {
+  box-shadow:
+    0 0 0 2px var(--bg-1),
+    0 0 0 3.5px var(--accent);
+}
+/* the custom picker: a rainbow ring until a custom colour is chosen, then that colour */
+.ce-custom {
+  background: conic-gradient(#e05a5a, #e3c27a, #2bb383, #4a94ea, #a57cec, #e05a5a);
+}
+.ce-custom input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
+}
+.ce-hat {
+  width: 44px;
+  height: 32px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line-2);
+  background: var(--bg-2);
+  cursor: pointer;
+}
+.ce-hat:hover {
+  border-color: var(--line-3);
+}
+.ce-hat.on {
+  border-color: var(--accent-line);
+  background: var(--accent-soft);
+}
+.ce-hat svg {
+  overflow: visible;
+  filter: drop-shadow(0 0 0.7px var(--crow-rim));
+}
+.ce-none {
+  stroke: var(--text-4);
+  stroke-width: 0.8;
+  stroke-linecap: round;
+}
+.ce-note {
+  font-size: 12px;
+  color: var(--text-2);
+  padding: 7px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--warn-soft);
+  border: 1px solid color-mix(in srgb, var(--warn) 30%, transparent);
+}
+
+/* ---------- agents' still badges ----------
+   CrowBadge: an agent's own crow in a small disc tinted with its accent. Colours come from inline
+   custom properties on the root (crowLook.ts lookProps), so the user's look never leaks in. */
+
+/* Every avatar size, in one place (AgentAvatar.tsx AV names them). The board and the cards step the
+   chat and card sizes down a little where they get narrow (board.css, agents.css). */
+:root {
+  --av-chat: 40px;
+  --av-card: 44px;
+  --av-bar: 22px;
+  /** the board composer's @ popup */
+  --av-mention: 20px;
+}
+
+.crow-badge {
+  flex: none;
+  display: inline-block;
+  vertical-align: middle;
+}
+.crow-badge svg {
+  display: block;
+  overflow: visible;
+}
+.crow-badge .cb-disc {
+  fill: color-mix(in srgb, var(--crow-trim) 16%, var(--bg-1));
+}
+.crow-badge .cb-rim {
+  fill: none;
+  stroke: var(--crow-trim);
+  /* in the badge's own units, so it grows with it: about 1.5px at chat and card size */
+  stroke-width: 0.75;
+  stroke-opacity: 0.55;
+}
+.crow-badge .cb-bust {
+  filter: drop-shadow(0 0 0.8px var(--crow-rim));
+}
+.crow-badge .c-body {
+  fill: var(--crow-av-body);
+}
+.crow-badge .c-wing {
+  fill: var(--crow-av-wing);
+}
+.crow-badge .c-beak {
+  fill: var(--crow-av-beak);
+}
+.crow-badge .c-eye {
+  fill: var(--crow-eye);
+}
+/* a catchlight, too small to see at 18px, that keeps the eye alive at chat and card size */
+.crow-badge .cb-glint {
+  fill: #fff;
+  opacity: 0.75;
+}
+.crow-badge .c-sheen {
+  fill: none;
+  stroke: var(--crow-sheen);
+  stroke-width: 0.8;
+  stroke-linecap: round;
+}
+.crow-badge .cb-head {
+  transform-origin: 28.5px 16px;
+}
+/* a working agent's card: one slow peck now and then, nothing more; motion.ts starts each one */
+.crow-badge.moving.bob .cb-head {
+  animation: cb-bob 0.84s ease-in-out;
+}
+@keyframes cb-bob {
+  0%,
+  100% {
+    transform: none;
+  }
+  33% {
+    transform: rotate(9deg);
+  }
+  60% {
+    transform: rotate(2deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .crow-badge.moving .cb-head {
+    animation: none;
+  }
+}
+
+/* the user's own crow look stays the assistant's (Corvid's); with the mascot off, the assistant
+   gets a plain marker the same size, so no row on the board is ever left without one */
+.plain-badge {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 50%;
+  vertical-align: middle;
+  background: var(--bg-3);
+  color: var(--text-3);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.plain-badge svg {
+  width: 55%;
+  height: 55%;
+  stroke-width: 1.75;
+}
+/* the user's own, on the board: the accent tint of their bubbles */
+.plain-badge.you {
+  background: var(--accent-soft);
+  color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent-line);
+}
+/* with a name set in Settings: its first letter (or emoji) instead of the person, the colour pulled
+   toward the text colour so it stays readable on the light themes' pale tint */
+.plain-badge.initial {
+  color: color-mix(in srgb, var(--accent) 60%, var(--text));
+  font-weight: 600;
+  line-height: 1;
+  user-select: none;
+}
+/* the user's profile picture: round, with the crows' rim drawn over it so the two read as one set */
+.user-pic {
+  position: relative;
+  flex: none;
+  display: inline-block;
+  vertical-align: middle;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--bg-3);
+}
+.user-pic img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.user-pic::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--crow-trim) 55%, transparent);
+  pointer-events: none;
+}
