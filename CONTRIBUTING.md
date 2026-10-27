@@ -103,7 +103,8 @@ It has three jobs per platform:
 - **Test (os)**: on Linux first the secret scan (`npm run secret-scan`: secrets, key and `.env` files,
   `node_modules` or build output, files over 5 MB), then `npm ci`, a check that Electron's binary was downloaded
   (`node scripts/electron-binary.mjs --strict`), `npm run typecheck`, `npm run build`, `npm test` (every
-  `scripts/test-*.mjs` file), then the UI smoke test (`scripts/ui-smoke.mjs`) against a test copy.
+  `scripts/test-*.mjs` file), then the UI smoke test (`scripts/ci-smoke.sh`, which runs `scripts/ui-smoke.mjs`)
+  against a test copy.
 - **npm ci with npm 11 (os)**: the test job's `npm ci` uses Node 22's npm 10, so this one installs the newest npm 11
   on the runner and runs `npm ci --ignore-scripts`, then checks `package-lock.json` didn't change. npm 11.6.2+
   checks the lockfile more strictly (#183). If it fails with "Missing: … from lock file", regenerate the missing
@@ -129,8 +130,8 @@ Reading the results:
   yet, so a failure there shows as a warning (an orange mark on that step) and the job still passes. Look at it, but
   it doesn't block a merge.
 - To reproduce a failure, run the same command locally; the step names are the commands. For the smoke test:
-  `npm run build`, `npm run test-instance -- start --owner <you> --data empty`, then
-  `node scripts/ui-smoke.mjs <id> --owner <you>` and stop the copy.
+  `npm run build`, then `bash scripts/ci-smoke.sh`. It starts a test copy with owner `ci`, runs
+  `node scripts/ui-smoke.mjs <id> --owner ci` and stops the copy.
 - A newer push to the same branch cancels the older run, so a "cancelled" run is not a failure.
 - The Linux runner has no system keyring, and none is needed: the tests replace Electron with a fake `safeStorage`.
   On Linux Corvid saves a secret only when `getSelectedStorageBackend()` names a real keyring
@@ -145,6 +146,35 @@ Reading the results:
   board, not a GitHub issue; you can't look it up, and new code doesn't need one.
 - Make sure `npm run typecheck` passes and the secret scan in the pre-commit hook stays happy.
 - Pull requests aren't accepted yet (see [Issues and pull requests](#issues-and-pull-requests)).
+
+## Publishing to the public repo
+
+This section is for the maintainer. Corvid is developed in a private repository. The public repository shares no
+history with it. Each update reaches the public `main` as one new commit with the private `main`'s exact tree.
+
+Sync when a batch of changes is ready for users, for example a fix that users need or a finished feature.
+
+1. On private `main`, bump `version` in `package.json` (and `package-lock.json`). Use a patch bump by default. Use a
+   minor or major bump only when the maintainer decides it.
+2. Add a dated `CHANGELOG.md` entry that lists the changes users can see. Merge both into private `main`.
+3. Run `npm run publish-sync -- --dry-run`, then `npm run publish-sync`.
+4. Read the summary. Then push with the command that the script prints.
+
+The script works in its own clone of the public repository, `../Corvid-Official` next to the private checkout
+(`--dir` changes this). It never works in the private checkout. It sets the public commit identity (the GitHub
+noreply address) in that clone only. The commit message is `Corvid v<version>`, a list of the merges since the last
+sync without the private `#NNN` numbers, and a `Synced-from: <private commit>` line. The next run starts from that
+line.
+
+The script refuses in these cases:
+
+- The public `main` has a commit that the script didn't make, for example an edit on GitHub.
+- The secret scan finds something in the tree.
+- A tracked file holds the private git email address.
+- The version is the same as the public version.
+
+The script never pushes. A push to the public repository can't be undone, because others can clone or cache the
+code at once. Only the maintainer approves a push, in a permission prompt, never on the board.
 
 ## Terms for contributions
 

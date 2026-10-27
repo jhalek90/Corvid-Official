@@ -64,19 +64,12 @@ jobs:
       # there a failure shows as a warning and doesn't fail the run.
       - name: UI smoke test
         continue-on-error: ${{ runner.os != 'Linux' }}
+        # a script, not an exported bash function: xvfb-run is a /bin/sh script, and Ubuntu's dash drops those
         run: |
-          smoke() {
-            out=$(npm run -s test-instance -- start --owner ci --data empty) || return 1
-            id=$(node -p 'JSON.parse(process.argv[1]).id' "$out")
-            node scripts/ui-smoke.mjs "$id" --owner ci && rc=0 || rc=$? # the copy is stopped either way
-            npm run -s test-instance -- stop "$id" --owner ci
-            return "$rc"
-          }
           if [ "$RUNNER_OS" = Linux ]; then
-            export -f smoke
-            xvfb-run -a bash -c smoke
+            xvfb-run -a bash scripts/ci-smoke.sh
           else
-            smoke
+            bash scripts/ci-smoke.sh
           fi
 
   # The test job runs npm ci with Node 22's npm 10. npm 11.6.2+ checks the lockfile more strictly (#183: it refused

@@ -1,6 +1,6 @@
 {
   "name": "corvid",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A desktop home for your Claude Code agents: hand them tasks, watch them work, and talk to them on one board.",
   "repository": {
     "type": "git",
@@ -73,6 +73,8 @@
     "prepare": "node scripts/install-hooks.mjs",
     "secret-scan": "node scripts/secret-scan.mjs --history",
     "test-secret-scan": "node --test scripts/test-secret-scan.mjs",
+    "publish-sync": "node scripts/publish-sync.mjs",
+    "test-publish-sync": "node --test scripts/test-publish-sync.mjs",
     "test-board-format": "node --test scripts/test-board-format.mjs",
     "test-pty-close": "node --test scripts/test-pty-close.mjs",
     "test-pty-close-posix": "node --test scripts/test-pty-close-posix.mjs",

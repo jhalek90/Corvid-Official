@@ -8,7 +8,14 @@ changes reached the public `main`, so you can see what an update brings in since
 Internal changes (tests, refactors, CI) are left out unless they change what you see. The history starts at the
 first public commit; earlier work lives in the maintainer's private repository.
 
-## Unreleased: first public release (0.1.0)
+## 0.1.1 (2026-10-27)
+
+- **Continuous integration**: the UI smoke test now runs on Linux too, so a green run on the public repository covers
+  all three platforms.
+- **Publishing**: the maintainer now ships updates to the public repository with `npm run publish-sync`, one commit per
+  update. Each commit message names the version and lists what changed.
+
+## 0.1.0 (2026-10-27): first public release
 
 The first public version of Corvid, a beta. Windows is where it's built and used every day; macOS and Linux are
 newly supported. See the [README](README.md#platforms) for the platform status.
