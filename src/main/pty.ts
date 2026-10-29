@@ -4,6 +4,7 @@ import { existsSync } from 'node:fs'
 import { homedir } from 'node:os'
 import type { LaunchMode, ShellOption, TerminalInfo } from '@shared/types'
 import { killTree, projectShell, shellList, type ShellDef } from './platform'
+import { withEnv, type LaunchEnv } from './customLaunch'
 
 interface Term {
   info: TerminalInfo
@@ -29,6 +30,13 @@ export function onTerminalExit(fn: (termId: string, code: number) => void): void
   exitListeners.push(fn)
 }
 
+const dataListeners: ((termId: string, data: string) => void)[] = []
+
+/** Every chunk a terminal prints, as it comes (#319's watch on custom-model workers). Keep listeners cheap. */
+export function onTerminalData(fn: (termId: string, data: string) => void): void {
+  dataListeners.push(fn)
+}
+
 type Emit = (channel: string, ...args: unknown[]) => void
 let emit: Emit = () => {}
 
@@ -41,15 +49,16 @@ export function claudeArgs(mode: LaunchMode, sessionId?: string): string[] {
   return mode === 'fork' ? ['--resume', sessionId, '--fork-session'] : ['--resume', sessionId]
 }
 
-function spawn(info: Omit<TerminalInfo, 'termId' | 'createdAt'>, file: string, args: string[]): TerminalInfo {
+function spawn(info: Omit<TerminalInfo, 'termId' | 'createdAt'>, file: string, args: string[], change?: LaunchEnv): TerminalInfo {
   const cwd = existsSync(info.cwd) ? info.cwd : homedir()
+  // DASHBOARD_PTY lets scripts (e.g. deploy) know they're running inside the dashboard.
+  const env = { ...process.env, TERM: 'xterm-256color', COLORTERM: 'truecolor', DASHBOARD_PTY: '1' }
   const proc = pty.spawn(file, args, {
     name: 'xterm-256color',
     cols: 120,
     rows: 32,
     cwd,
-    // DASHBOARD_PTY lets scripts (e.g. deploy) know they're running inside the dashboard.
-    env: { ...process.env, TERM: 'xterm-256color', COLORTERM: 'truecolor', DASHBOARD_PTY: '1' } as Record<string, string>
+    env: (change ? withEnv(env, change) : env) as Record<string, string>
   })
   const term: Term = {
     info: { ...info, cwd, termId: randomUUID(), createdAt: Date.now() },
@@ -65,6 +74,7 @@ function spawn(info: Omit<TerminalInfo, 'termId' | 'createdAt'>, file: string, a
     term.outAt = Date.now()
     term.buffer += d
     if (term.buffer.length > MAX_BUFFER) term.buffer = term.buffer.slice(-MAX_BUFFER)
+    for (const l of dataListeners) l(term.info.termId, d)
     term.pending += d
     term.flush ??= setTimeout(() => {
       term.flush = null
@@ -107,9 +117,19 @@ export function launchWorker(
   prompt: string,
   systemAppend: string,
   extraArgs: string[] = [],
-  agentName?: string
+  agentName?: string,
+  /** a custom-model worker's environment change (#314); unset for Claude workers, whose environment is unchanged */
+  env?: LaunchEnv
 ): TerminalInfo {
-  return spawn({ title, cwd, kind: 'claude', agentName }, bin, ['--name', title, ...extraArgs, '--append-system-prompt', systemAppend, prompt])
+  return spawn({ title, cwd, kind: 'claude', agentName }, bin, ['--name', title, ...extraArgs, '--append-system-prompt', systemAppend, prompt], env)
+}
+
+/**
+ * Settings → Models' Set up (#316): an interactive Claude Code on one of the user's own models, with nothing typed into
+ * it, so the user answers its first-run and folder-trust questions themselves.
+ */
+export function launchCustomSetup(bin: string, cwd: string, title: string, args: string[], env: LaunchEnv): TerminalInfo {
+  return spawn({ title, cwd, kind: 'claude' }, bin, args, env)
 }
 
 /** Closes the pseudoconsole. With a client still attached this blocks the main process while Windows asks it to close (#140). */

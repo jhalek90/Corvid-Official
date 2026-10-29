@@ -120,6 +120,15 @@ proposal shows the agent's reason and claimed source, highlights hosts nothing a
 its project until you choose otherwise. Read the hosts before approving. Settings → *Let agents propose connectors*
 turns the feature off.
 
+## Your own models
+
+Every rule on this page applies the same way to every model, Claude or one of your own (Settings → Models). A session
+on your own model is the same Claude Code with the same deny rules, approvals and permission prompts, pointed at a
+server on this computer (loopback addresses only). It gets no login: Corvid removes every Anthropic key, token and
+sign-in variable from its environment and runs it in a separate Claude Code folder with no credentials, and a model
+entry has no key field. Only the Settings page adds or changes a model entry. The lean profile for small contexts drops
+Corvid extras, never a safety rule. Corvid never moves a task between your own model and a Claude model by itself.
+
 ## Where secrets can be typed
 
 - **Connection forms:** these are the right place. They're write-only.

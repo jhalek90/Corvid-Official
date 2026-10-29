@@ -1,5 +1,7 @@
 import type { TokenTotals } from './types'
 import { effortArgs } from './reasoningEffort'
+import { permissionArgs } from './permissionMode'
+import { customModelId, findCustomModel, isCustomModelRef, type CustomModel, type CustomModelRef } from './customModels'
 
 export type ModelFamily = 'opus' | 'sonnet' | 'haiku' | 'fable' | 'other'
 
@@ -71,14 +73,28 @@ export const cliModel = (m: ModelChoice): string => m
 /**
  * The model and effort part of a claude command line, for Corvid and for workers: '--model' unless the model is
  * 'default', then '--effort' unless the effort is 'default' (#238). 'default' passes nothing, so Claude Code decides.
+ * Workers also pass their permission mode (#306): '--permission-mode acceptEdits' for accept edits, nothing otherwise.
+ * Corvid's own session leaves it out.
  */
-export const launchArgs = (model: string, effort: unknown): string[] => [
+export const launchArgs = (model: string, effort: unknown, permissionMode?: unknown): string[] => [
   ...(isModelChoice(model) ? ['--model', cliModel(model)] : []),
-  ...effortArgs(effort)
+  ...effortArgs(effort),
+  ...permissionArgs(permissionMode)
 ]
 
-/** "Haiku", "Sonnet", "Opus", "Fable 5.1": the name a selector, notice or tooltip shows for a choice. */
-export const choiceLabel = (m: string): string => (m === 'fable' ? modelLabel(FABLE_ID) : m ? m[0].toUpperCase() + m.slice(1) : m)
+/** The user's own model entries (#316), so a custom:<id> shows its entry's label. Unset means none. */
+type Models = readonly CustomModel[] | undefined
+
+/** "Qwen 27B (local)" for custom:qwen-local, or "qwen-local (removed)" when its entry is gone; undefined for anything else. */
+export function customLabel(m: string, models: Models): string | undefined {
+  const id = customModelId(m)
+  if (id === undefined) return undefined
+  return findCustomModel(models, m)?.label ?? `${id} (removed)`
+}
+
+/** "Haiku", "Sonnet", "Opus", "Fable 5.1", or a custom entry's label: the name a selector, notice or tooltip shows for a choice. */
+export const choiceLabel = (m: string, models?: Models): string =>
+  customLabel(m, models) ?? (m === 'fable' ? modelLabel(FABLE_ID) : m ? m[0].toUpperCase() + m.slice(1) : m)
 
 /** The warning in the confirmation shown whenever the user switches something to Fable, and the selectors' hint. */
 export const FABLE_WARNING = 'Fable can use up your usage quickly and cost a lot more than the other models.'
@@ -94,8 +110,15 @@ export function allModelsWeek<T extends { label: string }>(weeks: T[] | undefine
   return weeks?.find((w) => /all models/i.test(w.label)) ?? weeks?.[0]
 }
 
-/** Any model name for display: a choice ("fable" -> "Fable 5.1"), a full id ("claude-opus-5-5" -> "Opus 5.5"), else as is. */
-export const displayModel = (m: string): string => (isModelChoice(m) ? choiceLabel(m) : modelFamily(m) !== 'other' ? modelLabel(m) : m)
+/** The entry whose server-side model name this is (a transcript's model is what the server echoed back), if any. */
+const entryByModel = (m: string, models: Models): CustomModel | undefined => (m ? models?.find((e) => e.model === m) : undefined)
+
+/**
+ * Any model name for display: a choice ("fable" -> "Fable 5.1"), a full id ("claude-opus-5-5" -> "Opus 5.5"), a
+ * custom:<id> or a custom entry's own model name (its label, #316), else as is.
+ */
+export const displayModel = (m: string, models?: Models): string =>
+  customLabel(m, models) ?? (isModelChoice(m) ? choiceLabel(m) : modelFamily(m) !== 'other' ? modelLabel(m) : (entryByModel(m, models)?.label ?? m))
 
 // ---------- the model tag on an agent's card (#234) ----------
 
@@ -113,12 +136,16 @@ const mostUsed = (seen: Record<string, number> | undefined): string | undefined 
  * `model` is the worker's model (the task's own model already beat Settings when it started), or undefined for a
  * session Corvid didn't start. A worker on 'default' shows the Claude Code default when it's known, then the model its
  * session replied with, else just "Default". A session without a worker shows the model it replied with, or nothing.
+ * A worker on one of the user's own models (#316) shows the entry's label, neutral, marked `custom`.
  */
 export function cardModel(
   model: string | undefined,
   claudeDefault?: string,
-  seen?: Record<string, number>
-): { label: string; family: ModelFamily } | undefined {
+  seen?: Record<string, number>,
+  models?: Models
+): { label: string; family: ModelFamily; custom?: true } | undefined {
+  const own = model ? customLabel(model, models) : undefined
+  if (own) return { label: own, family: 'other', custom: true }
   if (!model) {
     const fam = known(mostUsed(seen))
     return fam && { label: FAMILY_NAME[fam], family: fam }
@@ -130,9 +157,10 @@ export function cardModel(
 
 // ---------- a task's own model (#136) ----------
 
-/** The model a worker on this task runs on: the task's own model when it has one, else the worker model from Settings. */
-export const taskModel = <M extends string>(task: { model?: string } | undefined, settings: M): ModelChoice | M =>
-  isModelChoice(task?.model) ? task.model : settings
+/** The model a worker on this task runs on: the task's own model when it has one (a Claude choice or custom:<id>,
+ *  #314), else the worker model from Settings. */
+export const taskModel = <M extends string>(task: { model?: string } | undefined, settings: M): ModelChoice | CustomModelRef | M =>
+  isModelChoice(task?.model) || isCustomModelRef(task?.model) ? task.model : settings
 
 /** A task's model as given (a tool argument, the editor, a hand-edited file): a choice, null for "follow Settings", undefined for anything else. */
 export function parseTaskModel(m: unknown): ModelChoice | null | undefined {

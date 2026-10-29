@@ -11,7 +11,9 @@ import { KEEP_DAYS_MAX, KEEP_DAYS_MIN } from '@shared/board'
 import { clampWorkers, cleanWorkerMinutes, SUGGESTED_WORKERS, WORKER_MINUTES } from '@shared/workerLimits'
 import { CAP_MULTIPLE, cleanCapMultiple } from '@shared/costEstimate'
 import { isModelChoice } from '@shared/models'
+import { cleanCustomModels, isCustomModelRef } from '@shared/customModels'
 import { isReasoningEffortSetting } from '@shared/reasoningEffort'
+import { isWorkerPermissionMode } from '@shared/permissionMode'
 import { defaultHotkey } from '@shared/platformInfo'
 import { AGENT_PING_DEFAULTS, cleanPingLimits } from '@shared/agentPings'
 import { checkClaudePathText } from './claudePath'
@@ -37,6 +39,8 @@ const DEFAULTS: AppConfig = {
   assistantPersonality: 'default',
   workerModel: 'default',
   workerEffort: 'default',
+  // passes no --permission-mode until the user picks one (#306), so nothing changes for existing copies
+  workerPermissionMode: 'default',
   userName: '',
   goofyNames: true,
   closeFinishedMinutes: 2,
@@ -146,12 +150,17 @@ function repair(c: AppConfig): void {
     fix(`the extension budget cap ${JSON.stringify(c.extensionCapMultiple)} is out of range, now ${cleanCapMultiple(c.extensionCapMultiple)}x`)
     c.extensionCapMultiple = cleanCapMultiple(c.extensionCapMultiple)
   }
-  // the models (#127): any of MODEL_CHOICES (Fable included) stays, an unknown one goes back to the default
-  if (!isModelChoice(c.assistantModel)) {
+  // the user's own models (#313): each bad entry is dropped with a notice, the good ones stay as they are
+  const custom = cleanCustomModels(c.models)
+  for (const why of custom.dropped) fix(why)
+  if (custom.models) c.models = custom.models
+  // the models (#127): any of MODEL_CHOICES (Fable included) stays, an unknown one goes back to the default. A
+  // well-formed custom:<id> stays too, even when its entry is gone (#313): N175 step 3 refuses to start it, never moves it to Claude
+  if (!isModelChoice(c.assistantModel) && !isCustomModelRef(c.assistantModel)) {
     fix(`Corvid's model ${JSON.stringify(c.assistantModel)} isn't a model, back to ${DEFAULTS.assistantModel}`)
     c.assistantModel = DEFAULTS.assistantModel
   }
-  if (c.workerModel !== 'default' && !isModelChoice(c.workerModel)) {
+  if (c.workerModel !== 'default' && !isModelChoice(c.workerModel) && !isCustomModelRef(c.workerModel)) {
     fix(`the worker model ${JSON.stringify(c.workerModel)} isn't a model, back to your Claude Code default`)
     c.workerModel = DEFAULTS.workerModel
   }
@@ -161,6 +170,11 @@ function repair(c: AppConfig): void {
       fix(`${what} ${JSON.stringify(c[k])} isn't an effort level, back to your Claude Code default`)
       c[k] = DEFAULTS[k]
     }
+  // the worker permission mode (#306): only the modes Settings offers; bypassing every check is never one of them
+  if (!isWorkerPermissionMode(c.workerPermissionMode)) {
+    fix(`the worker permission mode ${JSON.stringify(c.workerPermissionMode)} isn't one Corvid offers, back to your Claude Code default`)
+    c.workerPermissionMode = DEFAULTS.workerPermissionMode
+  }
   if (c.scanModel !== undefined && !isModelChoice(c.scanModel)) {
     fix(`the scan model ${JSON.stringify(c.scanModel)} isn't a model, back to haiku`)
     delete c.scanModel
@@ -215,6 +229,9 @@ export function getConfig(): AppConfig {
     if (typeof c.updateCheck !== 'boolean') c.updateCheck = DEFAULTS.updateCheck
     // the suggestions switch (#202): absent means on; anything but a boolean is dropped, so it reads as on
     if (c.agentSuggestions !== undefined && typeof c.agentSuggestions !== 'boolean') delete c.agentSuggestions
+    // the project-memory switch (#308): absent means off; anything but a boolean is dropped, so it reads as off. New
+    // installs get it written as true (#325, in the catch below), which leaves the meaning of absent alone
+    if (c.workerProjectMemory !== undefined && typeof c.workerProjectMemory !== 'boolean') delete c.workerProjectMemory
     // the chips switch (#206): the same, absent means on
     if (c.boardChips !== undefined && typeof c.boardChips !== 'boolean') delete c.boardChips
     if (c.updateDismissed !== undefined && typeof c.updateDismissed !== 'string') delete c.updateDismissed
@@ -230,8 +247,19 @@ export function getConfig(): AppConfig {
     }
   } catch (e) {
     current = { ...DEFAULTS }
-    // a config.json that's there but unreadable is kept aside, so the next save doesn't overwrite it with defaults
-    if (existsSync(file())) {
+    if (!existsSync(file())) {
+      // a new install (#325): project memory is on, written into its first config.json. Not in DEFAULTS, so an older
+      // config without the key (or a data folder that has Corvid's data but lost its config) still reads as off
+      if (!['tasks.json', 'board'].some((x) => existsSync(join(app.getPath('userData'), x)))) {
+        current.workerProjectMemory = true
+        try {
+          writeConfig(current)
+        } catch (w) {
+          console.warn('[config] could not write the first config.json', w)
+        }
+      }
+    } else {
+      // a config.json that's there but unreadable is kept aside, so the next save doesn't overwrite it with defaults
       const kept = `${file()}.unreadable-${Date.now()}`
       try {
         copyFileSync(file(), kept)
@@ -256,6 +284,9 @@ export function setConfig(patch: Partial<AppConfig>): AppConfig {
   for (const k of ['theme', 'themeLight', 'themeDark'] as const) if (!isSavedThemeId(current[k])) current[k] = DEFAULTS[k]
   current.extensionCapMultiple = cleanCapMultiple(current.extensionCapMultiple)
   for (const k of ['assistantEffort', 'workerEffort'] as const) if (!isReasoningEffortSetting(current[k])) current[k] = DEFAULTS[k]
+  if (!isWorkerPermissionMode(current.workerPermissionMode)) current.workerPermissionMode = DEFAULTS.workerPermissionMode
+  // custom models (#313): a bad entry never reaches the file; absent stays absent
+  if (current.models !== undefined) current.models = cleanCustomModels(current.models).models
   // a partial limits object keeps the rest as they were, rather than dropping them
   current.limits = { ...before, ...current.limits }
   current.limits.maxWorkers = clampWorkers(current.limits.maxWorkers)
@@ -269,11 +300,16 @@ export function setConfig(patch: Partial<AppConfig>): AppConfig {
   current.agentPingWake = current.agentPingWake === true
   current.agentPingLimits = cleanPingLimits(current.agentPingLimits)
   if (current.agentSuggestions !== undefined && typeof current.agentSuggestions !== 'boolean') delete current.agentSuggestions
+  if (current.workerProjectMemory !== undefined && typeof current.workerProjectMemory !== 'boolean') delete current.workerProjectMemory
   // only setClaudePath in index.ts writes it, after Check and the user's yes; a bad value never reaches the file (#194)
   if (current.claudePath !== undefined && claudePathProblem(current.claudePath)) delete current.claudePath
-  // write and rename, so a crash mid-write can't leave a half-written config.json (#83)
-  const tmp = file() + '.tmp'
-  writeFileSync(tmp, JSON.stringify(current, null, 2))
-  renameSync(tmp, file())
+  writeConfig(current)
   return current
+}
+
+/** Write and rename, so a crash mid-write can't leave a half-written config.json (#83). */
+function writeConfig(c: AppConfig): void {
+  const tmp = file() + '.tmp'
+  writeFileSync(tmp, JSON.stringify(c, null, 2))
+  renameSync(tmp, file())
 }

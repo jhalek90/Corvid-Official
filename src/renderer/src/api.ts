@@ -1,4 +1,5 @@
 import type { Tour, ToursState } from '@shared/tours'
+import type { CustomModel } from '@shared/customModels'
 import type { AgentPingStats } from '@shared/agentPings'
 import type { LineageEvent, LineageGraph } from '@shared/lineage'
 import type { SecretScan } from '@shared/secretRules'
@@ -441,6 +442,10 @@ interface Api {
   profileSave(bytes: Uint8Array): Promise<void>
   profileRemove(): Promise<void>
   setConfig(patch: Partial<AppConfig>): Promise<AppConfig>
+  /** Settings → Models (#316): the pre-start check on an entry, saved or still in the form */
+  testModel(entry: CustomModel): Promise<{ ok: boolean; message: string; serverContext?: number }>
+  /** Settings → Models' Set up (#316): an interactive Claude Code on a saved entry, for its first-run and trust questions */
+  setupModel(id: string): Promise<{ term: TerminalInfo; folder: string; left: string[] }>
   /** the agent-ping settings (#195): turning wake-ups on asks in a native dialog first */
   setAgentPings(patch: Partial<Pick<AppConfig, 'agentPings' | 'agentPingWake' | 'agentPingLimits'>>): Promise<AppConfig>
   agentPingStats(): Promise<AgentPingStats>

@@ -487,8 +487,8 @@ export function connectionsAccess(scope: AgentScope): { tools: ToolDef[]; allowe
     allowed: ['list_connections', 'describe_connection', 'call', 'call_more'],
     prompt:
       `Connections linked to this project: ${list.map((c) => c.name).join(', ')}. Use them with mcp__corvid__call, by name (mcp__corvid__list_connections and describe_connection show their operations). ` +
-      'Corvid holds the credentials and uses them for you: never ask for, look for or write down passwords, tokens or keys. Some calls wait for the user to approve them in Corvid. ' +
-      'A long result comes back one page at a time with a footer naming its result id; read further pages with mcp__corvid__call_more only if you need them. Large results cost the user usage: for JSON APIs, pass select (like "[*].title" or "[*]{id,title}") and limit to get only what you need.'
+      // paging, select and limit are in the call and call_more descriptions (#308)
+      'Corvid holds the credentials and uses them for you: never ask for, look for or write down passwords, tokens or keys. Some calls wait for the user to approve them in Corvid.'
   }
 }
 
@@ -498,7 +498,7 @@ export function connectionTools(scope: AgentScope): ToolDef[] {
   return [
     {
       name: 'list_connections',
-      description: `List the connections (servers, APIs, databases) linked to the project you are working in: name, type, operations with their class (read, write, admin), safety level and whether the user has approved the connector. ${NEVER}`,
+      description: `List the connections (servers, APIs, databases) linked to the project you are working in: name, type, operations with their class (read, write, admin), safety level and whether the user has approved the connector.`,
       input: {},
       readOnly: true,
       run: () => {
@@ -508,7 +508,7 @@ export function connectionTools(scope: AgentScope): ToolDef[] {
     },
     {
       name: 'describe_connection',
-      description: `Describe one connection: what it can reach and do, in plain words, its operations with their input, and its safety level. ${NEVER}`,
+      description: `Describe one connection: what it can reach and do, in plain words, its operations with their input, and its safety level.`,
       input: { name: z.string().describe('connection name, from list_connections') },
       readOnly: true,
       run: (a: { name: string }) => {
@@ -527,8 +527,7 @@ export function connectionTools(scope: AgentScope): ToolDef[] {
         'Run one operation on a connection linked to this project; Corvid uses the saved credentials and returns the result with known secrets masked as [redacted]. ' +
         "The connector must be approved by the user on first use, and the connection's safety level may make the call wait up to 3 minutes for the user; it fails if they decline or don't answer. " +
         'A result longer than a page (about 20,000 characters) returns its first page and a footer with a result id: read on with call_more. ' +
-        'Pages break between JSON array items or rows, and between lines of text. Large results cost the user usage, so for an HTTP JSON response ask for less: ' +
-        'select keeps part of the body (a path such as "posts[*].title", "[*]{id,title}" or "data.items[0]"), limit keeps the first N items. ' +
+        'Pages break between JSON array items or rows, and between lines of text. Large results cost the user usage, so for an HTTP JSON response ask for less with select and limit. ' +
         NEVER,
       input: {
         connection: z.string().describe('connection name'),

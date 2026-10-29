@@ -276,18 +276,32 @@
 .ag-head .ag-desc {
   margin-top: 1px;
 }
-/* The task under a goofy name. */
+/* The task under a goofy name: one line, the whole title in its tooltip (#327). */
 .ag-desc {
   min-width: 0;
   margin-top: -2px;
   color: var(--text-2);
   font-size: 12px;
   line-height: 1.4;
+  white-space: nowrap;
   overflow: hidden;
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  overflow-wrap: anywhere;
+  text-overflow: ellipsis;
+}
+/* a worker's task id beside its name, muted */
+.ag-id {
+  flex: none;
+  color: var(--text-4);
+  font-size: 11.5px;
+  font-weight: 500;
+}
+/* the status word when the dot on the crow says it: for screen readers only */
+.ag-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 .ag-now {
@@ -312,11 +326,12 @@
   color: var(--text-2);
   font-weight: 600;
 }
+/* what it's doing: a quiet line under the title (#327); a warning stays full size and amber */
 .ag-now.busy {
-  color: var(--text-2);
+  font-size: 11.5px;
 }
 .ag-now.busy svg {
-  color: var(--accent);
+  color: color-mix(in srgb, var(--accent) 70%, var(--text-3));
 }
 .ag-now.warn {
   color: var(--warn);
@@ -333,37 +348,53 @@
   font-size: 11px;
   color: var(--text-3);
 }
-/* a worker's branch: quiet, the first thing to shorten; amber when it needs a look (kept unmerged, held open) */
+/* a worker's branch: an icon, its name in the tooltip and a click copies it (#327); amber when it needs a look
+   (kept unmerged, held open), with a word for kept or merged */
 .ag-branch {
-  min-width: 14px;
-  /* the first thing in the details to give way, down to its icon */
-  flex: 0 1000 auto;
-  overflow: hidden;
+  flex: none;
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  height: 20px;
+  padding: 0 3px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  font: inherit;
   font-size: 10.5px;
   color: var(--text-4);
+  cursor: pointer;
 }
-.ag-branch svg {
-  flex: none;
-}
-.ag-branch .b {
-  min-width: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.ag-branch .st {
-  flex: none;
-}
-.ag-branch .st::before {
-  content: '· ';
+.ag-branch:hover {
+  color: var(--text-2);
+  background: var(--bg-3);
 }
 .ag-branch.attn {
   color: var(--warn);
 }
-/* the agent's model (#234): as quiet as the branch, and next to give way after it, down to nothing */
+/* model and context in one chip (#327): #326's mini ring and the size, then the model in full. Its parts sit in the
+   footer's row themselves, so the context never shrinks and the model gives way first; the chip's tooltip covers both */
+.ag-chip {
+  display: contents;
+}
+.ag-chip .ctx {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-variant-numeric: tabular-nums;
+}
+.ag-chip .ctx.amber {
+  color: var(--warn);
+}
+.ag-chip .ctx.red {
+  color: var(--danger);
+}
+.ag-chip .ctx .base {
+  color: var(--warn);
+  opacity: 0.8;
+}
+/* the agent's model (#234): the first thing to give way in a narrow card, down to nothing */
 .ag-model {
   min-width: 0;
   flex: 0 100 auto;
@@ -371,6 +402,14 @@
   overflow: hidden;
   text-overflow: ellipsis;
   color: var(--text-3);
+}
+.ag-chip .ctx + .ag-model {
+  margin-left: -4px;
+}
+.ag-chip .ctx + .ag-model::before {
+  content: '·';
+  margin-right: 6px;
+  color: var(--text-4);
 }
 /* Fable costs the most: a faint tint of the accent, nothing louder */
 .ag-model.fable {
@@ -407,6 +446,35 @@
   display: flex;
   align-items: center;
   gap: 2px;
+}
+/* The card's buttons show on hover and keyboard focus (#327), over the footer's end, so hidden they take no room.
+   They stay in the row while its terminal is open, and on ended cards and other sessions. */
+.agcard .ag-foot {
+  position: relative;
+}
+.agcard:not(.term-open, .ended, .ext) .ag-actions {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  padding-left: 8px;
+  background: var(--bg-1);
+  box-shadow: -10px 0 8px -2px var(--bg-1);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s;
+}
+.agcard:not(.term-open, .ended, .ext):is(:hover, :focus-within) .ag-actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+@media (hover: none) {
+  .agcard:not(.term-open, .ended, .ext) .ag-actions {
+    position: static;
+    opacity: 1;
+    pointer-events: auto;
+    box-shadow: none;
+  }
 }
 .ag-actions .btn {
   color: var(--text-4);
@@ -589,4 +657,9 @@
   background: var(--warn);
   border-color: transparent;
   color: var(--bg-1);
+}
+/* one of the user's own models (#316): neutral, with a quiet "local" mark */
+.ag-model.local::after {
+  content: ' · local';
+  opacity: 0.7;
 }

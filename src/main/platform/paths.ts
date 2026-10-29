@@ -1,4 +1,4 @@
-import { tmpdir } from 'node:os'
+import { homedir, tmpdir } from 'node:os'
 import { posix } from 'node:path'
 import { pathsOf, platformOf, toNative } from './shared.mjs'
 
@@ -32,4 +32,16 @@ export function tempDirs(platform: string = process.platform, env: NodeJS.Proces
   // macOS: tmpdir() is /var/folders/..., which realpath shows as /private/var/folders/...
   if (os === 'darwin') return [tmp, tmp.startsWith('/var/') ? '/private' + tmp : '', env.TMPDIR ?? ''].filter(Boolean)
   return [tmp, env.TMPDIR ?? '', '/tmp'].filter((d, i, all) => d && all.indexOf(d) === i)
+}
+
+/** The Claude Code config folder for sessions on the user's own models (#314, N175 section 3): outside the data folder,
+ *  one per copy of Corvid (`dataDirName` is the data folder's name, so a test copy gets its own).
+ *  Windows %LOCALAPPDATA%\<name>\claude-custom, macOS ~/Library/Application Support/<name>-claude-custom (beside the
+ *  data folder, not in it), Linux $XDG_STATE_HOME/<name>/claude-custom (~/.local/state when unset). */
+export function customClaudeDir(dataDirName: string, platform: string = process.platform, env: NodeJS.ProcessEnv = process.env, home: string = homedir()): string {
+  const os = platformOf(platform)
+  const { join } = pathsOf(os)
+  if (os === 'win32') return join(env.LOCALAPPDATA || join(home, 'AppData', 'Local'), dataDirName, 'claude-custom')
+  if (os === 'darwin') return join(home, 'Library', 'Application Support', `${dataDirName}-claude-custom`)
+  return join(env.XDG_STATE_HOME || join(home, '.local', 'state'), dataDirName, 'claude-custom')
 }

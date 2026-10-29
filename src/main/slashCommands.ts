@@ -5,6 +5,7 @@ import { cutText } from '@shared/text'
 import { ALL_CHANNEL } from '@shared/board'
 import { parseDiscuss } from '@shared/discussion'
 import { choiceLabel, MODEL_CHOICES } from '@shared/models'
+import { assistantModelProblem, customModelRef, isCustomModelRef, type CustomModelRef } from '@shared/customModels'
 
 // Slash commands from the board's message box (#71). Only index.ts's board:post handler calls this, for the text the
 // user typed in the app's own window: the board tools never do, so a message an agent or a tool posts that starts with
@@ -83,19 +84,32 @@ function dashboard(name: string, args: string, d: CommandDeps, where: { replyTo?
       if (!next) return `There's no "${arg}" mode. Use /mode ask (Plan & ask) or /mode auto.`
       if (next === now) return `Corvid is already in ${modeLabel(now)} mode.`
       void d.setConfig({ assistantMode: next })
-      return `Corvid's mode is now ${modeLabel(next)}.`
+      // on a custom model (#320) the mode stays Plan & ask until Corvid is back on a Claude model
+      const held = next === 'auto' && isCustomModelRef(d.config().assistantModel) ? ` While Corvid runs on ${choiceLabel(d.config().assistantModel, d.config().models)} it stays ${modeLabel('ask')}: workers need your approval.` : ''
+      return `Corvid's mode is now ${modeLabel(next)}.${held}`
     }
     case 'model': {
       const now = d.config().assistantModel
-      if (!arg) return `Corvid runs on ${choiceLabel(now)}. Change it with /model haiku, sonnet, opus or fable.`
-      const next: AssistantModel | undefined = MODEL_CHOICES.find((x) => x === arg)
-      if (!next) return `/model here takes haiku, sonnet, opus or fable, not "${arg}".`
-      if (next === now) return `Corvid already runs on ${choiceLabel(now)}.`
+      const own = d.config().models ?? []
+      // the user's own models (#316); Corvid itself only on those with a big enough context, experimentally (#320)
+      const fits = own.filter((m) => !assistantModelProblem(own, customModelRef(m.id)))
+      const yours = own.length
+        ? fits.length
+          ? ` Or one of your models with a context of 64k or more (experimental, workers need your approval while Corvid runs there): ${fits.map((m) => `/model ${m.id}`).join(', ')}.`
+          : ` Your models (${own.map((m) => m.label).join(', ')}) are for workers only: Corvid itself needs one with a context of 64k or more.`
+        : ''
+      if (!arg) return `Corvid runs on ${choiceLabel(now, own)}. Change it with /model haiku, sonnet, opus or fable.${yours}`
+      const mine = own.find((m) => m.id === arg.replace(/^custom:/, '') || m.label.toLowerCase() === arg)
+      const next: AssistantModel | CustomModelRef | undefined = MODEL_CHOICES.find((x) => x === arg) ?? (mine && customModelRef(mine.id))
+      if (!next) return `/model here takes haiku, sonnet, opus or fable, not "${arg}".${yours}`
+      if (next === now) return `Corvid already runs on ${choiceLabel(now, own)}.`
+      const why = mine && assistantModelProblem(own, next)
+      if (why) return `Corvid can't run on ${mine.label}: ${why}`
       // Fable asks in a dialog in Corvid's window first; Cancel (or a plan without it) keeps the model
       return d.setConfig({ assistantModel: next }).then((c) =>
         c.assistantModel === next
-          ? `Corvid now runs on ${choiceLabel(next)}; the conversation carries over.`
-          : `Corvid stays on ${choiceLabel(c.assistantModel)}: ${choiceLabel(next)} wasn't confirmed.`
+          ? `Corvid now runs on ${choiceLabel(next, own)}${mine ? ' (experimental); it starts a new conversation, and workers need your approval while it runs there.' : '; the conversation carries over.'}`
+          : `Corvid stays on ${choiceLabel(c.assistantModel, own)}: ${choiceLabel(next, own)} wasn't confirmed.`
       )
     }
     case 'usage':

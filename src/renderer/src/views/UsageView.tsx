@@ -6,6 +6,7 @@ import { useInScope, useScope } from '../scope'
 import { compact, relTime, until, usd } from '../format'
 import { DailyBars, FAMILY_LABEL, FAMILY_ORDER, familyColor, Heatmap, Meter, MinuteChart, severity, Sparkline } from '../components/charts'
 import { InfoTip } from '../components/Tooltip'
+import { localModelLabel } from '@shared/customModels'
 
 const FIVE_H = 5 * 3600_000
 const WEEK = 7 * 86400_000
@@ -30,6 +31,7 @@ export function UsageView(): ReactNode {
   const live = useStore((s) => s.liveTokens)
   const stats = useStore((s) => s.stats)
   const liveSessions = useStore((s) => s.liveSessions)
+  const customModels = useStore((s) => s.config?.models)
   const now = useNow(15_000)
   // usage is account wide; the project switcher (#77) only marks its project in Top projects
   const scope = useScope()
@@ -213,6 +215,17 @@ export function UsageView(): ReactNode {
             <Figure label="Est. value" value={usd(stats?.totals.costUsd ?? 0)} />
           </div>
         </div>
+
+        {/* sessions on the user's own models (#317): kept out of every figure above, one quiet line per model */}
+        {(stats?.local ?? []).length > 0 && (
+          <div className="span-12 muted usage-local">
+            {stats!.local.map((l) => (
+              <div key={l.model}>
+                {localModelLabel(customModels, l.model)}: {compact(l.tokens)} tokens this week, no plan usage
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )

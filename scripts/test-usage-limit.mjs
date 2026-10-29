@@ -32,6 +32,7 @@ const stubs = {
     export const launchWorker = () => ({ termId: 't' + ++n })
     export const listTerminals = () => []
     export const onTerminalExit = () => {}
+    export const onTerminalData = () => {}
     export const kill = () => {}
     export const lastOutput = () => undefined`,
   './claudeBin': `export const resolveClaude = async () => ({ path: 'claude' }); export const CLAUDE_NOT_FOUND = 'Claude Code (claude) not found.'`,

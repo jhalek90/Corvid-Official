@@ -18,7 +18,7 @@ export interface SessionState {
   recentIds: string[]
   titles: { custom?: string; ai?: string; summary?: string }
   tokensByModel: Record<string, TokenTotals>
-  /** local date -> model family -> tokens + assistant message count */
+  /** local date -> model family (the model itself for a local session) -> tokens + assistant message count */
   daily: Record<string, Record<string, TokenTotals & { msgs: number }>>
   /** local "YYYY-MM-DDTHH" -> assistant messages */
   hourly: Record<string, number>
@@ -59,12 +59,13 @@ function localHour(ts: number): string {
   return `${localDay(ts)}T${String(new Date(ts).getHours()).padStart(2, '0')}`
 }
 
-export function newState(id: string, file: string, projectDir: string): SessionState {
+export function newState(id: string, file: string, projectDir: string, local = false): SessionState {
   return {
     summary: {
       id,
       file,
       projectDir,
+      ...(local ? { local: true } : {}),
       cwd: '',
       projectName: projectDir,
       title: '',
@@ -199,7 +200,8 @@ export function applyRecord(st: SessionState, rec: any, sink: ParseSink, agent?:
     }
     if (hasTs) {
       const day = (st.daily[localDay(ts)] ??= {})
-      const fam = modelFamily(model)
+      // a local model's name says nothing about a Claude family, and the Usage page lists local ones by model (#317)
+      const fam = s.local ? model : modelFamily(model)
       const b = (day[fam] ??= { ...emptyTokens(), msgs: 0 })
       addTokens(b, t)
       b.msgs++
@@ -258,7 +260,8 @@ export function finalize(st: SessionState): void {
     s.dailyOutput[date] = Object.values(fams).reduce((a, b) => a + b.output, 0)
   }
   s.activeHours = Object.keys(st.hourly).length
-  s.costUsd = Object.entries(st.tokensByModel).reduce((acc, [m, t]) => acc + estimateCost(m, t), 0)
+  // a local model has no API price; estimateCost would price its unknown name like Sonnet (#317)
+  s.costUsd = s.local ? 0 : Object.entries(st.tokensByModel).reduce((acc, [m, t]) => acc + estimateCost(m, t), 0)
   s.junk = s.assistantMsgs === 0
 }
 

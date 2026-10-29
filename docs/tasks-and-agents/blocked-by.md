@@ -35,6 +35,41 @@ The card of a task that others wait on shows "Blocks" and their numbers.
 
 A proposal in **Awaiting your approval** also says when its task still waits on others.
 
+## Start automatically when the blockers are done
+
+A task can start by itself when the last task it waits on moves to **Done**. Use this for a chain of tasks that
+must run one after the other. The switch is off by default.
+
+1. Click the task's card. The task editor opens.
+2. Set its **Blocked by** tasks.
+3. Turn on **Start automatically when its blockers are done**.
+4. Click **Save**. The card shows a small lightning icon.
+
+When a blocker moves to Done (its worker's branch is merged, or you move it), Corvid checks each task that waits on
+it. A task starts only when all of these are true:
+
+- The switch is on.
+- The task is in **Backlog** or **Up next**.
+- No worker runs on it.
+- Every task it is blocked by is in Done or removed.
+
+The start uses the same path as **Automate**. The worker limit, the usage limit, the time limit, the task's model and
+the mode all apply. Each start posts one notice on the board: "Started #N automatically: its blockers are done."
+
+What happens when it cannot start at once:
+
+| Situation | What happens |
+|---|---|
+| **Plan & ask** mode | Corvid makes the usual proposal. You approve it in **Awaiting your approval**. |
+| Every worker slot is taken | A board notice says the task is ready. It starts when a slot frees. A restart of Corvid forgets the wait. |
+| Usage is over the limit | A board notice says "#N is ready to start but usage is over the limit; start it yourself." No dialog opens. |
+
+NOTE: turning the switch on does not start the task, even when its blockers are already done. Only a blocker that
+moves to Done starts it.
+
+Corvid can set the switch for you, but only when you ask for an automatic chain. See
+[Talking to Corvid](../board-and-corvid/talking-to-corvid.md).
+
 ## Hide blocked tasks
 
 Click **Hide blocked** at the top of the board. The board shows only the tasks that are ready to start. The count at

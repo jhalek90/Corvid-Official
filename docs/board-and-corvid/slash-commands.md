@@ -115,6 +115,10 @@ Claude Code.
 `/compact` frees up context by summarising the conversation so far. `/context` shows how much context Corvid's
 conversation uses.
 
+The context ring in the Corvid strip shows the same figure all the time. Click it for **Compact**, which is
+`/compact`, and **Clear…**, which is `/clear` with a confirmation first. See
+[Corvid's context ring](talking-to-corvid.md#corvids-context-ring).
+
 The list comes from Corvid's session each time Corvid starts. Before Corvid has started for the first time, the
 list has only `/compact` and `/context`.
 

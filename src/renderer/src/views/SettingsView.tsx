@@ -1,12 +1,15 @@
 import { useEffect, useLayoutEffect, useMemo, useState, type ReactNode } from 'react'
 import { ExtensionSettings } from './ExtensionSockets'
-import { AppWindow, Bot, Check, Gauge, GitBranch, HardDrive, MessageSquare, Palette, Puzzle, ShieldCheck, TriangleAlert, User, Users, type LucideIcon } from 'lucide-react'
+import { ModelsSettings } from './ModelsSettings'
+import type { CustomModelRef } from '@shared/customModels'
+import { AppWindow, Bot, Check, Cpu, Gauge, GitBranch, HardDrive, MessageSquare, Palette, Puzzle, ShieldCheck, TriangleAlert, User, Users, type LucideIcon } from 'lucide-react'
 import { CLOSE_FINISHED_MAX, type AgentGitMode, type AppConfig, type ClaudePathCheck, type AssistantModel, type AssistantPersonality, type ResumeMentioned, type WorkerModel } from '@shared/types'
 import { THEMES, extensionThemes, themeTokens, type ThemeDef, type ThemeKind } from '@shared/themes'
 import { useThemeExtensions } from '../extensionSockets'
 import { workerModelLabel } from '../components/Assistant'
 import { EffortOptions, ModelOptions } from '../components/ModelOptions'
 import type { ReasoningEffortSetting } from '@shared/reasoningEffort'
+import { permissionModeLabel, WORKER_PERMISSION_MODES, type WorkerPermissionMode } from '@shared/permissionMode'
 import { CrowEditor } from '../components/CrowEditor'
 import { ProfilePicture } from '../components/ProfilePicture'
 import { AgentDenyList } from '../components/AgentDenyList'
@@ -38,6 +41,7 @@ export function SettingsView(): ReactNode {
   const sessions = useStore((s) => s.sessions)
   const progress = useStore((s) => s.progress)
   const claudeDefault = useStore((s) => s.claudeDefaultModel)
+  const tasks = useStore((s) => s.tasks)
   const [hotkey, setHotkey] = useState(config?.hotkey ?? '')
   // what the desktop offers (#158): a tray to close to, and a notification daemon (Linux may have neither)
   const [desktop, setDesktop] = useState<DesktopInfo | null>(null)
@@ -81,7 +85,7 @@ export function SettingsView(): ReactNode {
         <>
           <LimitRow label="Model" tip="The model Corvid itself runs on. Haiku is cheapest for chat and routing; Fable costs the most.">
             <select className="select" value={config.assistantModel} onChange={(e) => set({ assistantModel: e.target.value as AssistantModel })}>
-              <ModelOptions />
+              <ModelOptions custom="corvid" current={config.assistantModel} />
             </select>
           </LimitRow>
           <LimitRow label="Effort" tip="How hard Corvid thinks before it answers (Claude Code's --effort). Higher is slower and uses more of your usage. Claude Code default passes nothing. A change applies from Corvid's next session, like a model change; the conversation carries over.">
@@ -96,15 +100,24 @@ export function SettingsView(): ReactNode {
               <option value="casual">Casual</option>
             </select>
           </LimitRow>
-          <LimitRow label="Worker model" tip="The model new workers run on.">
-            <select className="select" value={config.workerModel} onChange={(e) => set({ workerModel: e.target.value as WorkerModel })}>
+          <LimitRow label="Worker model" tip="The model new workers run on. Your own models (Settings → Models) are listed under Your models.">
+            <select className="select" value={config.workerModel} onChange={(e) => set({ workerModel: e.target.value as WorkerModel | CustomModelRef })}>
               <option value="default">{workerModelLabel('default', claudeDefault)}</option>
-              <ModelOptions />
+              <ModelOptions custom="on" current={config.workerModel} />
             </select>
           </LimitRow>
-          <LimitRow label="Worker effort" tip="How hard new workers think (Claude Code's --effort). Higher is slower and uses more of your usage. Claude Code default passes nothing. Applies to workers started from now on; running ones keep theirs.">
+          <LimitRow label="Worker effort" tip="How hard new workers think (Claude Code's --effort). Higher is slower and uses more of your usage. Claude Code default passes nothing. Applies to workers started from now on; running ones keep theirs. Ignored for your own models (Settings → Models): Corvid passes them no effort.">
             <select className="select" value={config.workerEffort} onChange={(e) => set({ workerEffort: e.target.value as ReasoningEffortSetting })}>
               <EffortOptions />
+            </select>
+          </LimitRow>
+          <LimitRow label="Worker permission mode" tip="What new workers may do without asking you (Claude Code's --permission-mode). Accept edits lets them edit files without asking; commands still ask. Claude Code default passes nothing. A project's own .claude/settings.json can still ask for more. Applies to workers started from now on; running ones keep theirs. Workers on your own models (Settings → Models) always start in Claude Code's default mode and ask before edits, whatever this says.">
+            <select className="select" value={config.workerPermissionMode} onChange={(e) => set({ workerPermissionMode: e.target.value as WorkerPermissionMode })}>
+              {WORKER_PERMISSION_MODES.map((m) => (
+                <option key={m} value={m}>
+                  {permissionModeLabel(m)}
+                </option>
+              ))}
             </select>
           </LimitRow>
           <div className="setting">
@@ -113,6 +126,15 @@ export function SettingsView(): ReactNode {
           </div>
         </>
       ),
+    },
+    {
+      // the user's own models (#316): entries, Test and Set up; the pickers above list them under Your models
+      id: 'models',
+      title: 'Models',
+      icon: Cpu,
+      weight: 3,
+      tip: "Your own models, on a server on this computer (a llama-server, for example). Workers on them run the same Claude Code, pointed at that server with no login, and use no plan usage. Corvid checks the server answers before each start and never switches a task to a Claude model by itself. Corvid itself can run on ones with 64k context or more, as an experiment (choose one in Model).",
+      body: <ModelsSettings config={config} tasks={tasks} />,
     },
     {
       id: 'agents',
@@ -162,6 +184,13 @@ export function SettingsView(): ReactNode {
           <div className="setting">
             <SettingLabel label="Goofy agent names" tip={"Each agent the dashboard starts gets a made-up job title that fits its task, like “Senior Pixel Plumber”, with the task number and title underneath. The same task keeps its name. Off, agents get a short plain name like “Text Selector Agent”. Running agents keep theirs."} />
             <div className={`toggle${config.goofyNames ? ' on' : ''}`} onClick={() => set({ goofyNames: !config.goofyNames })} />
+          </div>
+          <div className="setting">
+            <SettingLabel
+              label="Workers keep project memory in CLAUDE.md"
+              tip={'Workers add short lines under "Project notes" in the project\'s CLAUDE.md, in their own branch, merged with the rest of their work: a convention, decision or gotcha a later task must know and the code doesn\'t show. Claude Code loads CLAUDE.md in every session, so the next worker starts with it. On for new installs; an existing install keeps its setting. Turn it off where workers shouldn\'t write a CLAUDE.md, like benchmark or scratch repos. Off, workers are told nothing about it. Applies to workers started after a change.'}
+            />
+            <div className={`toggle${config.workerProjectMemory === true ? ' on' : ''}`} onClick={() => set({ workerProjectMemory: config.workerProjectMemory !== true })} />
           </div>
         </>
       ),

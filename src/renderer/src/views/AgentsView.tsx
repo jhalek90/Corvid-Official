@@ -9,6 +9,7 @@ import {
   CircleStop,
   GitBranch,
   Hourglass,
+  Layers,
   ListTodo,
   LoaderCircle,
   Maximize2,
@@ -17,6 +18,7 @@ import {
   Search,
   Sparkles,
   Terminal,
+  TriangleAlert,
   X
 } from 'lucide-react'
 import type { SessionSummary, TerminalInfo, Worker } from '@shared/types'
@@ -24,7 +26,7 @@ import { needsYou, useAgents, type Agent, type AgentStatus, type Origin } from '
 import { baseName } from '@shared/projects'
 import { cardModel, displayModel } from '@shared/models'
 import { api } from '../api'
-import { closeTerminalTab, getState, hasTermTab, launch, mentionOnBoard, newSession, openTerminal, setState, toggleInline, useStore } from '../store'
+import { closeTerminalTab, getState, hasTermTab, launch, mentionOnBoard, newSession, openTerminal, setState, toast, toggleInline, useStore } from '../store'
 import { normKey } from '@shared/projectList'
 import { TermSlot, dropGoneTerminals } from '../components/AgentTerminal'
 import { MessageBoard } from '../components/MessageBoard'
@@ -32,7 +34,10 @@ import { ErrorBoundary } from '../components/ErrorBoundary'
 import { Approvals } from '../components/Approvals'
 import { AgentsSummary, OverLimit, StopAll } from '../components/AgentsSummary'
 import { OtherSessions, RecentSessions } from '../components/OtherSessions'
-import { ContextTag } from '../components/bits'
+import { ContextTag, contextTitle, primaryModel } from '../components/bits'
+import { MiniRing } from '../components/CorvidContext'
+import { baseHigh, contextHigh, corvidWindow, ringShort, ringTokens, ringUse } from '@shared/context'
+import { activityLine } from '@shared/activityLine'
 import { prettyModel } from '../components/Assistant'
 import { AgentAvatar, AV, workerLook } from '../components/AgentAvatar'
 import { unreadFor } from '@shared/board'
@@ -335,9 +340,15 @@ function realTitle(g: Agent, name?: string): ReactNode {
   if (g.worker)
     return (
       <>
-        <b className="num">#{g.worker.taskId}</b> {g.task?.title ?? g.worker.taskTitle}
+        <b className="num">#{g.worker.taskId}</b> {plainTitle(g, name)}
       </>
     )
+  return plainTitle(g, name)
+}
+
+/** The title alone, without a worker's task id: a named card shows the id beside the name (#327). */
+function plainTitle(g: Agent, name?: string): string {
+  if (g.worker) return g.task?.title ?? g.worker.taskTitle
   const title = g.s?.title ?? g.live?.name ?? g.t.title
   // a named agent's session title ends with its name, which already shows above
   return name && title.endsWith(` · ${name}`) ? title.slice(0, -name.length - 3) : title
@@ -377,6 +388,9 @@ function projectOf(g: Agent): string {
 
 const dotOf = (st: AgentStatus): string => (needsYou(st) ? 'waiting' : st === 'busy' ? 'busy' : st === 'exited' ? 'off' : 'idle')
 
+/** The status word: "Working", "Needs you", or for an ended worker how it ended. */
+const wordOf = (g: Agent): string => (needsYou(g.status) ? 'Needs you' : g.status === 'exited' && g.worker ? ENDED[g.worker.state] : LABEL[g.status])
+
 /** One small marker: a dot (a diamond for Needs you) and one word. `dot` off when the dot sits on the agent's crow instead. */
 function Status({ g, dot = true }: { g: Agent; dot?: boolean }): ReactNode {
   const { status, live } = g
@@ -410,6 +424,14 @@ function NowLine({ g, now }: { g: Agent; now: number }): ReactNode {
         <span className="lbl">{endedLine(worker) ?? `Process exited with code ${t.exited}`}</span>
       </div>
     )
+  // its custom model went wrong while it ran (#319): what the watch found, until it ends or gets past a start-up prompt
+  if (worker?.modelTrouble)
+    return (
+      <div className="ag-now warn" title={worker.modelTrouble.message}>
+        <TriangleAlert size={13} />
+        <span className="lbl">{worker.modelTrouble.message}</span>
+      </div>
+    )
   if (needsYou(status))
     return (
       <div className="ag-now warn">
@@ -427,11 +449,15 @@ function NowLine({ g, now }: { g: Agent; now: number }): ReactNode {
   const lastTool = status === 'busy' && a ? a.events.findLast((e) => e.kind === 'tool') : undefined
   if (lastTool) {
     const Icon = toolIcon(lastTool)
+    // the tool and its first command or target; the whole label in the tooltip (#327)
+    const line = activityLine(lastTool.tool, lastTool.label, lastTool.agent)
     return (
-      <div className="ag-now busy" title={relTime(lastTool.ts, now)}>
+      <div className="ag-now busy" title={`${line.full}\n${relTime(lastTool.ts, now)}`}>
         <Icon size={13} />
         <span className="lbl">
-          {lastTool.agent ? <span className="agent-tag">{lastTool.agent}</span> : <b>{lastTool.tool}</b>} {lastTool.label}
+          {lastTool.agent ? <span className="agent-tag">{line.who}</span> : line.who && <b>{line.who}</b>}
+          {line.who && ' · '}
+          {line.what}
         </span>
       </div>
     )
@@ -459,43 +485,74 @@ function endedLine(w?: Worker): string | undefined {
 }
 
 /**
- * A worker's branch and where it stands, quiet beside the details. It turns amber when the branch needs a look: work kept
- * unmerged when it ended, or a finished agent held open over unmerged work. The git message is its tooltip.
+ * A worker's branch and where it stands, quiet beside the details: an icon, with the branch's name, the git message and
+ * the worktree in its tooltip; a click copies the name (#327). It turns amber when the branch needs a look: work kept
+ * unmerged when it ended, or a finished agent held open over unmerged work. A word says when it was kept or merged.
  */
 function Branch({ w }: { w?: Worker }): ReactNode {
   if (!w?.branch) return null
+  const branch = w.branch
   const st = w.git?.state
   const attn = st === 'kept' || (w.state === 'running' && !!w.closeHeld)
   const label = st === 'kept' ? 'kept' : st === 'merged' ? 'merged' : st === 'removed' ? 'cleaned up' : ''
-  const tip = [w.git?.message ?? (w.closeHeld && `${w.closeHeld}.`), w.worktree && `Worktree: ${w.worktree}`].filter(Boolean).join('\n')
+  const tip = [branch, w.git?.message ?? (w.closeHeld && `${w.closeHeld}.`), w.worktree && `Worktree: ${w.worktree}`, 'Click to copy the branch name.']
+    .filter(Boolean)
+    .join('\n')
   return (
-    <span className={`ag-branch mono${attn ? ' attn' : ''}`} title={tip || undefined}>
-      <GitBranch size={11} />
-      <span className="b">{w.branch}</span>
+    <button
+      className={`ag-branch${attn ? ' attn' : ''}`}
+      title={tip}
+      aria-label={`Branch ${branch}${label ? `, ${label}` : ''}. Copy its name`}
+      onClick={stop(() => void navigator.clipboard.writeText(branch).then(() => toast(`Copied ${branch}`)))}
+    >
+      <GitBranch size={12} />
       {label && <span className="st">{label}</span>}
-    </span>
+    </button>
   )
 }
 
 /**
- * The model the agent runs on (#234), a quiet tag in the details: a worker's model, its 'default' resolved to the Claude
- * Code default when that's known; for a session Corvid didn't start, the model its replies used, else nothing. It gives
- * way right after the branch, so the actions stay on the row. Fable, the costliest, gets a faint accent.
+ * Model and context in one chip (#327). The context: #326's mini ring and its size ("86k"); the ring turns amber past
+ * the context warning or 60% of the window and red past 85%, and a stack mark shows heavy always-on context. The exact
+ * numbers are in the tooltip. The model the agent runs on (#234): a worker's model, its 'default' resolved to the
+ * Claude Code default when that's known; for a session Corvid didn't start, the model its replies used, else nothing.
+ * Fable, the costliest, gets a faint accent; one of the user's own models (#316) shows its label with a neutral
+ * "local" mark. The model gives way first in a narrow card, so the actions stay on the row.
  */
-function ModelTag({ model, effort, seen }: { model?: string; effort?: string; seen?: Record<string, number> }): ReactNode {
-  const claudeDefault = useStore((s) => s.claudeDefaultModel)
-  const m = cardModel(model, claudeDefault, seen)
-  if (!m) return null
-  const tip =
-    model === 'default'
-      ? `Runs on your Claude Code default model${claudeDefault ? `: ${prettyModel(claudeDefault)}` : ". Corvid couldn't read which one that is."}`
-      : model
-        ? `Runs on ${displayModel(model)}`
-        : 'The model its replies came from'
-  // its effort (#238), when it was started with one: "Opus · high"
+function ModelChip({ s, model, effort, seen }: { s?: SessionSummary; model?: string; effort?: string; seen?: Record<string, number> }): ReactNode {
+  const claudeDefault = useStore((st) => st.claudeDefaultModel)
+  const models = useStore((st) => st.config?.models)
+  const m = cardModel(model, claudeDefault, seen, models)
+  const ctx = s && (s.context || s.baseContext) ? s : undefined
+  if (!m && !ctx) return null
+  const tips: string[] = []
+  if (m) {
+    const tip =
+      model === 'default'
+        ? `Runs on your Claude Code default model${claudeDefault ? `: ${prettyModel(claudeDefault)}` : ". Corvid couldn't read which one that is."}`
+        : model
+          ? `Runs on ${displayModel(model, models)}${m.custom ? ', one of your own models (no plan usage)' : ''}`
+          : 'The model its replies came from'
+    // its effort (#238), when it was started with one: "Opus · high"
+    tips.push(effort ? `${tip}, at ${effort} effort.` : `${tip}.`)
+  }
+  let ring: ReactNode = null
+  if (ctx) {
+    const u = ringUse(ctx.context, corvidWindow(model ?? (seen && primaryModel(seen)), models))
+    const level = u.level === 'calm' && contextHigh(ctx) ? 'amber' : u.level
+    tips.push(u.compacted ? 'Context: just compacted.' : `Context: ${ringShort(u)}.`, contextTitle(ctx))
+    ring = (
+      <span className={`ctx ${level}`}>
+        <MiniRing share={u.share} level={level} size={13} />
+        {u.compacted ? 'compacted' : ringTokens(u.tokens)}
+        {baseHigh(ctx) && <Layers size={11} className="base" />}
+      </span>
+    )
+  }
   return (
-    <span className={`ag-model${m.family === 'fable' ? ' fable' : ''}`} title={effort ? `${tip}, at ${effort} effort` : tip}>
-      {effort ? `${m.label} · ${effort}` : m.label}
+    <span className="ag-chip" title={tips.join('\n')}>
+      {ring}
+      {m && <span className={`ag-model${m.family === 'fable' ? ' fable' : ''}${m.custom ? ' local' : ''}`}>{effort ? `${m.label} · ${effort}` : m.label}</span>}
     </span>
   )
 }
@@ -637,16 +694,20 @@ function AgentCard({ g, now, showProject, open }: { g: Agent; now: number; showP
     >
       {name ? (
         <div className="ag-head">
-          <span className="ag-face">
+          <span className="ag-face" title={wordOf(g)}>
             <Face g={g} name={name} size={AV.card} moving={g.status === 'busy'} />
             <span className={`dot ${dotOf(g.status)}`} />
           </span>
           <div className="ag-head-main">
             <div className="ag-title ag-name">
               <span>{name}</span>
-              <Status g={g} dot={false} />
+              {g.worker && <span className="ag-id num">#{g.worker.taskId}</span>}
+              {/* the word stays in sight when it needs you or has ended; otherwise the dot says it, and screen readers read it */}
+              {needsYou(g.status) || g.status === 'exited' ? <Status g={g} dot={false} /> : <span className="ag-sr">{wordOf(g)}</span>}
             </div>
-            <div className="ag-desc">{realTitle(g, name)}</div>
+            <div className="ag-desc" title={plainTitle(g, name)}>
+              {plainTitle(g, name)}
+            </div>
           </div>
         </div>
       ) : (
@@ -655,11 +716,10 @@ function AgentCard({ g, now, showProject, open }: { g: Agent; now: number; showP
       <NowLine g={g} now={now} />
       <div className="ag-foot">
         {!name && <Status g={g} />}
-        {g.s && <ContextTag s={g.s} />}
-        <ModelTag model={g.worker?.model} effort={g.worker?.effort} seen={g.s?.models} />
+        <ModelChip s={g.s} model={g.worker?.model} effort={g.worker?.effort} seen={g.s?.models} />
         <Closing w={g.worker} />
-        <Branch w={g.worker} />
         {showProject && <span className="ag-proj">{projectOf(g)}</span>}
+        <Branch w={g.worker} />
         <Actions g={g} lead={lead} />
       </div>
       {open && <InlineTerminal g={g} tabbed={tabbed} />}
@@ -687,10 +747,11 @@ function EndedCard({ w, now, showProject }: { w: Worker; now: number; showProjec
         <div className="ag-head-main">
           <div className="ag-title ag-name">
             <span>{w.agentName ?? `#${w.taskId}`}</span>
+            {w.agentName && <span className="ag-id num">#{w.taskId}</span>}
             <span className="ag-status exited">{ENDED[w.state]}</span>
           </div>
-          <div className="ag-desc">
-            <b className="num">#{w.taskId}</b> {task?.title ?? w.taskTitle}
+          <div className="ag-desc" title={task?.title ?? w.taskTitle}>
+            {task?.title ?? w.taskTitle}
           </div>
         </div>
       </div>
@@ -699,9 +760,9 @@ function EndedCard({ w, now, showProject }: { w: Worker; now: number; showProjec
         <span className="lbl">{endedLine(w) ?? 'Ended'}</span>
       </div>
       <div className="ag-foot">
-        <ModelTag model={w.model} effort={w.effort} />
-        <Branch w={w} />
+        <ModelChip model={w.model} effort={w.effort} />
         {showProject && <span className="ag-proj">{baseName(w.project)}</span>}
+        <Branch w={w} />
         <span className="ag-actions">
           {w.agentName && <ResumeByMention name={w.agentName} />}
           <button className="btn ghost icon sm" title="Remove from the list" onClick={() => void api.dismissWorker(w.id)}>

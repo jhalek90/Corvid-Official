@@ -119,9 +119,13 @@ test(`all posters together: ${BOARD_LIMITS.allPostsPerHour} posts in an hour pas
   assert.equal(r.err, 'Rate limit: the board has had all the agent messages it takes for this hour. Keep working without posting.')
 })
 
-test("the worker instructions state the agent limits from BOARD_LIMITS, and no old numbers", () => {
+// #308: the limits are said once, in the worker's read_messages and post_message descriptions, not again in its
+// instructions
+test("the worker's tools state the agent limits from BOARD_LIMITS, and its instructions no old numbers", () => {
   const p = tools.workerBoardPrompt({ agentName: 'Crow 7', taskId: 7 })
   const a = BOARD_LIMITS.agent
-  assert.ok(p.includes(`Limits: ${a.postsPerHour} posts per hour, ${a.gapSec} seconds apart, and ${a.readsPerHour} reads per hour.`))
+  const worker = { kind: 'agent', agentName: 'Crow 7', taskId: 7 }
+  assert.ok(toolOf(worker, 'post_message').description.includes(`${a.postsPerHour} posts per hour, ${a.gapSec} s apart.`))
+  assert.ok(toolOf(worker, 'read_messages').description.includes(`(${a.readsPerHour} reads per hour)`))
   assert.ok(!/\b12 posts|20 seconds apart|\b20 reads/.test(p))
 })

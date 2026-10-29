@@ -5,6 +5,7 @@ import { TASK_COLUMNS, type Task, type TaskColumn, type TaskFile } from '@shared
 import { attachmentKind, attachProblem, safeAttachmentName, uniqueName, validAttachments, type BoardAttachment } from '@shared/board'
 import { checkBlockedBy, cleanBlockedBy, loopPath } from '@shared/blockers'
 import { parseTaskModel } from '@shared/models'
+import { customModelId, findCustomModel, isCustomModelRef, type CustomModel } from '@shared/customModels'
 
 // Plain JSON so other tools (the assistant, later) can read and edit tasks too.
 // Removed tasks are deleted, not archived. Done (#138) is a column like the others: a task there stays until it's removed.
@@ -19,6 +20,9 @@ export const REMOVED_FILES_KEEP_MS = 5 * 60_000
 
 let data: TaskFile = { nextId: 1, tasks: [] }
 let emit: (tasks: Task[]) => void = () => {}
+/** Told which tasks just moved into Done, by any path (a worker's merge, the editor, a drag, a tool): automatic starts (#282). */
+let movedToDone: (ids: number[]) => void = () => {}
+export const onMovedToDone = (cb: (ids: number[]) => void): void => void (movedToDone = cb)
 let lastWrite = 0
 
 /** A project (#73) for a task: by id, name or folder; worktree folders count as their repo's project. */
@@ -29,6 +33,8 @@ export interface ProjectResolver {
   forPath: (path: string) => string | undefined
   /** one of a project's folders by label or path -> its current path (3/5) */
   folder: (id: string, q: string) => string | undefined
+  /** the user's own model entries from Settings (#316), so a task can be put on custom:<id> for one that exists */
+  models?: () => readonly CustomModel[] | undefined
 }
 let projects: ProjectResolver = { resolve: () => undefined, forPath: () => undefined, folder: () => undefined }
 
@@ -55,14 +61,17 @@ function load(before?: Map<number, Task['model']>): boolean {
       const ids = cleanBlockedBy(t.blockedBy, t.id)
       if (ids) t.blockedBy = ids
       else delete t.blockedBy
+      // autoStart (#282): older files have none; anything but true means off and leaves the file on the next save
+      if (t.autoStart !== true) delete t.autoStart
       // a column this version doesn't know (a hand edit, say) would hide the task: it goes to Backlog instead
       if (!(TASK_COLUMNS as readonly string[]).includes(t.column)) t.column = 'backlog'
       // priority is gone (#134): an older file's value is dropped here and so leaves the file on the next save
       delete (t as { priority?: unknown }).priority
-      // a task's model (#136): older files have none, and anything that isn't a model means "follow Settings"
+      // a task's model (#136): older files have none, and anything that isn't a model means "follow Settings". A
+      // well-formed custom:<id> stays even when its entry is gone (#313): N175 step 3 refuses to start it, never moves it to Claude
       const model = parseTaskModel(t.model)
       if (model) t.model = model
-      else delete t.model
+      else if (!isCustomModelRef(t.model)) delete t.model
       // attached files (#187): older tasks have none; a hand-edited list that isn't valid is dropped, never trusted
       if (t.attachments !== undefined && (!validAttachments(t.attachments) || !t.attachments.length)) delete t.attachments
       if (before && t.model === 'fable' && before.get(t.id) !== 'fable') {
@@ -191,10 +200,22 @@ function blockers(id: number | undefined, list: unknown, previous?: number[]): n
  * in Corvid's own dialog (index.ts). Throws with a message for the user otherwise.
  */
 function modelFor(given: unknown, current: Task['model'], fable: boolean): Task['model'] | null {
+  // a custom:<id> the task already has (#313) stays when the editor sends it back, even with its entry gone; a new
+  // one must be an entry in Settings → Models (#316). Only the Settings page makes entries, so this only picks one.
+  if (isCustomModelRef(given)) {
+    if (given === current || findCustomModel(projects.models?.(), given)) return given
+    throw new Error(`There's no model "${customModelId(given)}" in Settings → Models.${ownModels()}`)
+  }
   const m = parseTaskModel(given)
-  if (m === undefined) throw new Error(`"${String(given)}" isn't a model. Use haiku, sonnet or opus, or default to follow the worker model in Settings.`)
+  if (m === undefined) throw new Error(`"${String(given)}" isn't a model. Use haiku, sonnet or opus, or default to follow the worker model in Settings.${ownModels()}`)
   if (m === 'fable' && current !== 'fable' && !fable) throw new Error(TASK_FABLE_REFUSED)
   return m
+}
+
+/** " The user's own models: custom:a (A), …" for an error, or '' when there are none. */
+function ownModels(): string {
+  const list = projects.models?.() ?? []
+  return list.length ? ` The user's own models: ${list.map((m) => `custom:${m.id} (${m.label})`).join(', ')}.` : ''
 }
 
 /** `fable`: the user confirmed Fable for this task in Corvid's dialog (#136); nothing else may put a task on Fable. */
@@ -218,7 +239,9 @@ export function createTask(typed: Partial<Task> & { title: string }, consent: Mo
       ? undefined
       : blockers(undefined, input.blockedBy)
   // Undo brings a task back on the model it had, Fable included, without asking again
-  const model = modelFor(input.model, undefined, !!consent.fable || (restoring && removedFable.has(input.id!)))
+  // and on its custom:<id> (#313) even with its entry gone; a new task takes one only for an entry that exists (#316)
+  const model =
+    restoring && isCustomModelRef(input.model) ? input.model : modelFor(input.model, undefined, !!consent.fable || (restoring && removedFable.has(input.id!)))
   const task: Task = {
     id: restoring ? input.id! : data.nextId++,
     title: input.title.trim(),
@@ -231,6 +254,7 @@ export function createTask(typed: Partial<Task> & { title: string }, consent: Mo
     sessionId: input.sessionId,
     source: input.source,
     ...(blockedBy?.length ? { blockedBy } : {}),
+    ...(input.autoStart === true ? { autoStart: true } : {}),
     ...(model ? { model } : {}),
     // only Undo brings files back, and only those still kept on disk; a copy or a new task starts without any (#187)
     ...(restoring && restoredFiles(input.id!, input.attachments).length ? { attachments: restoredFiles(input.id!, input.attachments) } : {}),
@@ -258,10 +282,12 @@ export function updateTask(id: number, typed: Partial<Task>, consent: ModelConse
   else delete t.model
   if (blockedBy) t.blockedBy = blockedBy
   else delete t.blockedBy
+  if (t.autoStart !== true) delete t.autoStart
   if (!t.projectId) delete t.projectId
   if (!t.projectId || !t.folder) delete t.folder
   if (movedColumn && patch.order === undefined) t.order = nextOrder(t.column)
   save()
+  if (movedColumn && t.column === 'done') movedToDone([id])
   return t
 }
 
@@ -370,13 +396,18 @@ export const taskFilesBytes = (): number => data.tasks.reduce((s, t) => s + (t.a
 
 /** Set a column's contents and order in one go (drag and drop). */
 export function arrangeColumn(column: TaskColumn, ids: number[]): void {
+  const moved: number[] = []
   ids.forEach((id, i) => {
     const t = data.tasks.find((x) => x.id === id)
     if (t) {
-      if (t.column !== column) t.updatedAt = Date.now()
+      if (t.column !== column) {
+        t.updatedAt = Date.now()
+        moved.push(id)
+      }
       t.column = column
       t.order = i + 1
     }
   })
   save()
+  if (column === 'done' && moved.length) movedToDone(moved)
 }

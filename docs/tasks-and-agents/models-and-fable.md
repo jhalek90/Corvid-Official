@@ -12,7 +12,8 @@ Each task can run its workers on its own model. A task with no model of its own 
 ## The models
 
 Every model selector in Corvid offers the same four models, cheapest first: **Haiku**, **Sonnet**, **Opus** and
-**Fable**.
+**Fable**. The worker model, a task's model and Corvid's own model also list the models you added in **Settings** →
+**Models**, under **Your models**. See [Your own models](your-own-models.md).
 
 | Selector | Default |
 |---|---|

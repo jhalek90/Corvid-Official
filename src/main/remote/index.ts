@@ -181,7 +181,8 @@ export function remoteAccess(scope: AgentScope): { tools: ToolDef[]; allowed: st
     allowed: ['list_systems', 'run_on'],
     prompt:
       `Remote systems linked to this project: ${mine.map((s) => s.name).join(', ')}. To run a command on one, use mcp__corvid__run_on with the system's name (mcp__corvid__list_systems shows them and their safety levels). ` +
-      'Corvid connects for you; you never get passwords or keys, and must not ask the user for them or try ssh yourself. Some commands wait for the user to approve them in Corvid. ' +
+      // that some commands wait for the user's approval is in run_on's description (#308)
+      'Corvid connects for you; you never get passwords or keys, and must not ask the user for them or try ssh yourself. ' +
         'To copy a file from your worktree or scratchpad onto a system, use the upload operation of the connection with the same name (mcp__corvid__call), not base64 in commands.'
   }
 }
@@ -192,7 +193,7 @@ export function remoteTools(scope: AgentScope): ToolDef[] {
     {
       name: 'list_systems',
       description:
-        'List the remote systems (SSH servers) linked to the project you are working in, with each one\'s safety level. Refer to systems by name in run_on. You never get passwords or keys; Corvid connects for you.',
+        'List the remote systems (SSH servers) linked to the project you are working in, with each one\'s safety level. Refer to systems by name in run_on.',
       input: {},
       readOnly: true,
       run: () => {

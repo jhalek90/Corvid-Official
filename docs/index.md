@@ -35,6 +35,7 @@ Corvid is a desktop app that runs Claude Code agents on your projects. These pag
 - [Worktrees and merging](tasks-and-agents/worktrees-and-merging.md): Where a worker makes its changes, and how they reach main.
 - [The Agents view](tasks-and-agents/agents-view.md): What the agent cards, approvals and session lists on the start page show.
 - [The Context cloud](tasks-and-agents/lineage.md): A read-only picture of where each agent's context came from and what it left behind.
+- [Your own models](tasks-and-agents/your-own-models.md): How to run workers on a model server on your own computer, what has been tested, and a llama.cpp quick start.
 
 ## Board and Corvid
 

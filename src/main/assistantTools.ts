@@ -16,6 +16,7 @@ import { TASK_COLUMNS } from '@shared/types'
 import { buildProjects, type Project } from '@shared/projectModel'
 import { findRecord, folderName, projectIdFor } from '@shared/projectList'
 import { allModelsWeek, fableWeek, modelLabel } from '@shared/models'
+import { effectiveAssistantMode } from '@shared/customModels'
 import type { ToolDef } from './mcp'
 import { blockedTasks, blockerLabel, MAX_BLOCKERS, openBlockers } from '@shared/blockers'
 import { createTask, listTasks, removeTask, TASK_FABLE_REFUSED, updateTask } from './tasks'
@@ -73,13 +74,16 @@ function taskFolderLabel(t: Task): string | undefined {
   return `${folderName(f)}${t.folder ? '' : ' (primary, none chosen)'}`
 }
 
-/** A task's model in create_task and update_task (#136). Fable is listed so asking for it gets the reason, not a type error. */
+/**
+ * A task's model in create_task and update_task (#136). Fable is listed so asking for it gets the reason, not a type
+ * error. custom:<id> picks one of the user's own models (#316); tasks.ts takes it only for an entry in Settings.
+ */
 const taskModelInput = z
-  .enum(['default', 'haiku', 'sonnet', 'opus', 'fable'])
+  .union([z.enum(['default', 'haiku', 'sonnet', 'opus', 'fable']), z.string().regex(/^custom:[a-z0-9-]{1,32}$/)])
   .optional()
-  .describe('the model workers on this task run on; default follows the worker model in Settings. Fable is refused: only the user can set it, in the task editor')
+  .describe("the model workers on this task run on; default follows the worker model in Settings; custom:<id> for one of the user's own models in Settings → Models. Fable is refused: only the user can set it, in the task editor")
 const TASK_MODEL_HELP =
-  "model sets the model this task's workers run on (haiku, sonnet, opus, or default to follow the worker model in Settings). Only set it when the user asks. Fable can't be set here: tell the user to open the task and pick Fable under Model in its editor, which asks them first."
+  "model sets the model this task's workers run on (haiku, sonnet, opus, custom:<id> for one of the user's own models in Settings → Models, or default to follow the worker model in Settings). Only set it when the user asks. Fable can't be set here: tell the user to open the task and pick Fable under Model in its editor, which asks them first."
 
 const taskView = (t: Task) => ({
   id: t.id,
@@ -97,6 +101,8 @@ const taskView = (t: Task) => ({
   // only blockers that still exist and aren't in Done: those no longer block
   blocked_by: openBlockers(t, findTask).map(blockerLabel).join('; ') || undefined,
   blocks: blockedTasks(t, listTasks()).map((x) => `#${x.id}`).join(', ') || undefined,
+  // starts by itself once every blocker is done (#282)
+  auto_start: t.autoStart || undefined,
   worker: workers.listWorkers().find((w) => w.taskId === t.id && w.state === 'running')?.id
 })
 
@@ -111,6 +117,13 @@ const blockedByInput = z
   .max(MAX_BLOCKERS)
   .optional()
   .describe('task ids this one should wait for (a soft hint, never enforced); the whole list, [] clears it')
+
+const autoStartInput = z
+  .boolean()
+  .optional()
+  .describe(
+    'start a worker on it automatically when the last of its blocked_by tasks moves to done, with the same limits as start_worker; turning it on starts nothing by itself. Set it only when the user asks for an automatic chain'
+  )
 
 export function assistantTools(d: ToolDeps): ToolDef[] {
   // task id -> the user message start_worker warned about its blockers in
@@ -135,7 +148,7 @@ export function assistantTools(d: ToolDeps): ToolDef[] {
         const tasks = listTasks()
         return {
           now: new Date().toString(),
-          mode: d.config().assistantMode,
+          mode: effectiveAssistantMode(d.config()),
           personality: d.config().assistantPersonality,
           models: { assistant: d.config().assistantModel, workers: d.config().workerModel },
           limits: d.config().limits,
@@ -172,7 +185,7 @@ export function assistantTools(d: ToolDeps): ToolDef[] {
     {
       name: 'list_tasks',
       description:
-        'List the tasks on the board, column by column: backlog, next, doing (in progress) and done. Done tasks are finished but still on the board until removed; removed tasks are deleted, so they never show. Optional filters. model is the model its workers run on: default follows the worker model in Settings. blocked_by lists the tasks a task should wait for that are not done yet, and their state; blocks lists the tasks waiting on it. files lists the files the user attached (name, type, size): read them with read_task_file.',
+        'List the tasks on the board, column by column: backlog, next, doing (in progress) and done. Done tasks are finished but still on the board until removed; removed tasks are deleted, so they never show. Optional filters. model is the model its workers run on: default follows the worker model in Settings. blocked_by lists the tasks a task should wait for that are not done yet, and their state; blocks lists the tasks waiting on it. auto_start: true means a worker starts on it by itself when its last blocker moves to done. files lists the files the user attached (name, type, size): read them with read_task_file.',
       input: { column: z.enum(TASK_COLUMNS).optional(), project: z.string().optional().describe('project name or path') },
       readOnly: true,
       run: ({ column, project }) => {
@@ -199,9 +212,10 @@ export function assistantTools(d: ToolDeps): ToolDef[] {
         priority: z.unknown().optional().describe('not used'),
         column: z.enum(TASK_COLUMNS).optional(),
         blocked_by: blockedByInput,
+        auto_start: autoStartInput,
         model: taskModelInput
       },
-      run: ({ title, notes, project, folder, column, blocked_by, model }) => {
+      run: ({ title, notes, project, folder, column, blocked_by, auto_start, model }) => {
         if (model === 'fable') throw new Error(TASK_FABLE_REFUSED)
         refuseTaskSecret(`${title}
 ${notes ?? ''}`)
@@ -215,7 +229,8 @@ ${notes ?? ''}`)
           ...(folder ? { folder } : {}),
           column,
           blockedBy: blocked_by,
-          ...(model && model !== 'default' ? { model } : {})
+          ...(auto_start ? { autoStart: true } : {}),
+          ...(model && model !== 'default' ? { model: model as Task['model'] } : {})
         })
         return taskView(t)
       }
@@ -223,7 +238,7 @@ ${notes ?? ''}`)
     {
       name: 'update_task',
       description:
-        "Change a task: title, notes, column (backlog/next/doing/done; done is for finished work, and no worker starts on a done task), project, folder (which of a multi-folder project's folders to work in, by label or path; empty for the primary), blocked_by (the tasks it should wait for), or model. Attached files can't be added or removed here: only the user can, in Corvid's window. " +
+        "Change a task: title, notes, column (backlog/next/doing/done; done is for finished work, and no worker starts on a done task), project, folder (which of a multi-folder project's folders to work in, by label or path; empty for the primary), blocked_by (the tasks it should wait for), auto_start (start by itself when its blockers are done), or model. Attached files can't be added or removed here: only the user can, in Corvid's window. " +
         TASK_MODEL_HELP,
       input: {
         id: z.number(),
@@ -234,9 +249,10 @@ ${notes ?? ''}`)
         project: z.string().optional(),
         folder: z.string().optional(),
         blocked_by: blockedByInput,
+        auto_start: autoStartInput,
         model: taskModelInput
       },
-      run: ({ id, project, priority: _gone, blocked_by, model, ...rest }) => {
+      run: ({ id, project, priority: _gone, blocked_by, auto_start, model, ...rest }) => {
         if (model === 'fable' && findTask(id)?.model !== 'fable') throw new Error(TASK_FABLE_REFUSED)
         refuseTaskSecret(`${rest.title ?? ''}
 ${rest.notes ?? ''}`)
@@ -244,6 +260,7 @@ ${rest.notes ?? ''}`)
         if (project && !p) throw new Error(`No project matches "${project}".`)
         const patch: Partial<Task> = { ...rest }
         if (blocked_by) patch.blockedBy = blocked_by
+        if (auto_start !== undefined) patch.autoStart = auto_start
         // "default" clears it (tasks.ts), so the task follows Settings again
         if (model) patch.model = model as Task['model']
         if (p) Object.assign(patch, { projectId: p.id, project: p.path })

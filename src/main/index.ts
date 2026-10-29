@@ -35,10 +35,11 @@ import type {
   Theme,
   UsageQuota,
   UsageStats,
-  ClaudePathSaved
+  ClaudePathSaved,
+  TerminalInfo
 } from '@shared/types'
 import { configRepairs, getConfig, setConfig } from './config'
-import { agentSettingsArgs, dataFolders } from './agentDeny'
+import { agentSettingsArgs, customConfigDir, dataFolders } from './agentDeny'
 import { scanProject } from './projectScan'
 import { resolveTheme, themeChrome } from '@shared/themes'
 import { CLAUDE_NOT_FOUND, claudeDefaultModel, forgetClaude, resolveClaude } from './claudeBin'
@@ -48,8 +49,13 @@ import { terminalAvailable } from './platform/os'
 import { fetchQuota, getQuota, startQuotaPolling } from './usage'
 import { allModelsWeek, choiceLabel, cliModel, parseTaskModel, FABLE_MAYBE_UNAVAILABLE, FABLE_WARNING, fableWeek } from '@shared/models'
 import { effortLabel } from '@shared/reasoningEffort'
+import { permissionModeLabel } from '@shared/permissionMode'
 import { watchLive } from './liveRegistry'
 import * as pty from './pty'
+import { assistantModelProblem, customModelProblem, findCustomModel, isCustomModelRef, type CustomModel } from '@shared/customModels'
+import { checkCustomModel, type HealthResult } from './customHealth'
+import { customLaunch } from './customLaunch'
+import { setupFolder } from './customSetup'
 import { openFileInVSCode, openFolder, openInTerminal, openInVSCode, revealFile } from './launch'
 import { listDir, listDrives, listPlaces, readPreview } from './files'
 import { deriveRoots, initProjects, isTracked, refreshAll, refreshPath, scanArchive, track } from './projects'
@@ -64,7 +70,8 @@ import * as buildProgress from './buildProgress'
 import * as lifecycle from './extensionLifecycle'
 import * as verify from './extensionVerify'
 import * as resolveConflict from './extensionResolve'
-import { addTaskFiles, arrangeColumn, createTask, fillProjectIds, initTasks, listTasks, removeTask, removeTaskFile, restoresFable, taskFilePath, taskFolder, updateTask } from './tasks'
+import { addTaskFiles, arrangeColumn, createTask, fillProjectIds, initTasks, listTasks, onMovedToDone, removeTask, removeTaskFile, restoresFable, taskFilePath, taskFolder, updateTask } from './tasks'
+import * as autoStart from './autoStart'
 import * as projectStore from './projectStore'
 import * as corvidSelf from './corvidSelf'
 import { createUpdateTask, dismissUpdate, runUpdateCheck, startUpdateCheck, updateView } from './updateCheck'
@@ -75,8 +82,9 @@ import * as unfiled from './unfiled'
 import { startMcp, type McpEndpoint, type ToolDef } from './mcp'
 import { appendNote, createNote, deleteNote, initNotes, listNotes, markSeen, notesDir, restoreNote, updateNote } from './notes'
 import * as lineage from './lineage'
-import { NOTES_PROMPT, noteTools } from './noteTools'
-import { taskFilesPrompt, taskFileTools, TASK_FILES_SAFETY } from './taskFileTools'
+import { noteTools, workerNotesPart } from './noteTools'
+import { LEAN_VOICE, leanTools } from '@shared/leanProfile'
+import { taskFilesPrompt, taskFileTools } from './taskFileTools'
 import { attachmentPath, clearBoard, getMessage as boardMessage, initBoard, listMessages, markSeen as markBoardSeen, noteReadBy, post as boardPost, setDiscussion, setPing, prune as pruneBoard, snapshot as boardSnapshot } from './board'
 import * as discussion from './discussion'
 import { modelWeight, WINDOW_TOKENS } from '@shared/costEstimate'
@@ -199,6 +207,8 @@ function startIndexer(): void {
   indexer = createIndexer({
     workerData: {
       projectsRoot: join(claudeHome(), 'projects'),
+      // sessions on the user's own models live in their own Claude config folder (#317)
+      localRoot: join(customConfigDir(), 'projects'),
       cacheDir: join(app.getPath('userData'), 'index')
     }
   })
@@ -209,6 +219,8 @@ function startIndexer(): void {
         send('index:progress', progress)
         break
       case 'sessions': {
+        // Corvid's own transcripts feed only its context ring (#326)
+        for (const s of msg.sessions as SessionSummary[]) if (isAssistantCwd(s.cwd)) assistant.sawOwnSession(s)
         const list = (msg.sessions as SessionSummary[]).filter((s) => !isAssistantCwd(s.cwd))
         sessions.clear()
         for (const s of list) sessions.set(s.id, s)
@@ -217,6 +229,8 @@ function startIndexer(): void {
         break
       }
       case 'updated': {
+        // Corvid's own transcripts feed only its context ring (#326)
+        for (const s of msg.sessions as SessionSummary[]) if (isAssistantCwd(s.cwd)) assistant.sawOwnSession(s)
         const list = (msg.sessions as SessionSummary[]).filter((s) => !isAssistantCwd(s.cwd))
         for (const s of list) sessions.set(s.id, s)
         if (list.length) send('sessions:updated', list)
@@ -759,8 +773,7 @@ const boardDeps: BoardDeps = {
   projectOf: taskChannel,
   projectName: (id) => projectStore.getProject(id)?.name,
   // agent pings (#195): every switch and limit is checked in agentPing.ts, here in main
-  agentPosted: (m, from) => agentPing.agentPosted(m, from),
-  pings: () => ({ on: getConfig().agentPings, wake: getConfig().agentPings && getConfig().agentPingWake })
+  agentPosted: (m, from) => agentPing.agentPosted(m, from)
 }
 
 /** A question this worker asked the user on the board since it started, with no answer yet: a reply to it, or a message
@@ -1406,6 +1419,15 @@ function registerIpc(): void {
   ipcMain.handle('fs:preview', (_e, file: string) => readPreview(file))
 
   ipcMain.handle('config:set', (_e, patch: Partial<AppConfig>) => applyConfig(patch))
+  // Settings → Models (#316): Test asks the entry's server, Set up opens Claude Code on it. Only Corvid's own window.
+  ipcMain.handle('models:test', (e, entry: unknown) => {
+    if (e.sender !== win?.webContents) throw new Error('Only the Corvid window can test a model.')
+    return testCustomModel(entry)
+  })
+  ipcMain.handle('models:setup', (e, id: unknown) => {
+    if (e.sender !== win?.webContents) throw new Error('Only the Corvid window can set up a model.')
+    return setUpCustomModel(id)
+  })
   registerTours(ipcMain)
   // agent pings (#195): only Corvid's own window, and turning on wake-ups asks in a native dialog first
   ipcMain.handle('config:agentPings', (e, patch: unknown) => {
@@ -1435,6 +1457,31 @@ function registerIpc(): void {
   ipcMain.handle('agentPings:stats', () => agentPing.pingStats())
   ipcMain.handle('secrets:scan', (_e, root: string) => scanProject(root))
   ipcMain.handle('secrets:denyInfo', () => ({ dataFolders: dataFolders(), platform: process.platform }))
+}
+
+/** Settings → Models' Test (#316): the pre-start check (#315) on an entry, saved or still in the form. */
+async function testCustomModel(entry: unknown): Promise<HealthResult> {
+  const why = customModelProblem(entry)
+  if (why) return { ok: false, reason: 'down', message: `Can't test it: ${why}.` }
+  return checkCustomModel(entry as CustomModel)
+}
+
+/**
+ * Settings → Models' Set up (#316): one interactive Claude Code on a saved entry, with its launch environment and in
+ * the common parent of the project folders and the worktree roots, so the user answers Claude Code's first-run and
+ * trust questions once, themselves. Corvid types nothing into it and never writes Claude Code's own files.
+ */
+async function setUpCustomModel(id: unknown): Promise<{ term: TerminalInfo; folder: string; left: string[] }> {
+  const m = getConfig().models?.find((x) => x.id === id)
+  if (!m) throw new Error("That model isn't in Settings → Models any more. Save it first.")
+  const bin = await resolveClaude(getConfig().claudePath)
+  if (!bin) throw new Error(CLAUDE_NOT_FOUND)
+  const folders = projectStore.listProjects().filter((p) => !p.archived).flatMap((p) => p.folders.map((f) => f.path))
+  const at = setupFolder(folders)
+  if (!at) throw new Error('Add a project first: Set up opens Claude Code in the folder above your projects, so you can trust it once.')
+  const launch = customLaunch(m, customConfigDir())
+  const term = pty.launchCustomSetup(bin.path, at.folder, `Set up ${m.label}`, launch.args, launch)
+  return { term, folder: at.folder, left: at.left }
 }
 
 /** The settings that pick a model (#127): switching any of them to Fable asks first. */
@@ -1629,6 +1676,17 @@ async function confirmAgentWake(): Promise<boolean> {
   return a.response === 0
 }
 
+/** Settings → Models' list as sent (#316): a list of good entries with unique ids, or an error naming the first bad one. */
+function checkModelsPatch(list: unknown): void {
+  if (!Array.isArray(list)) throw new Error("The models list isn't a list.")
+  const taken = new Set<string>()
+  for (const e of list) {
+    const why = customModelProblem(e, taken)
+    if (why) throw new Error(`${(e as { label?: string })?.label || 'A model'} can't be saved: ${why}.`)
+    taken.add((e as CustomModel).id)
+  }
+}
+
 /** A settings change from the user: Settings, the Corvid strip, or a /mode or /model command on the board. */
 async function applyConfig(patch: Partial<AppConfig>): Promise<AppConfig> {
   {
@@ -1662,12 +1720,26 @@ async function applyConfig(patch: Partial<AppConfig>): Promise<AppConfig> {
         }
       }
     }
+    // the user's own models (#316): a bad entry is refused with its reason, never saved; Settings is the only way in
+    if (patch.models !== undefined) checkModelsPatch(patch.models)
+    const models = patch.models ?? prev.models
+    // Corvid itself only on an entry with a big enough context (#320, experimental); a worker model must be an entry that exists
+    if (isCustomModelRef(patch.assistantModel) && patch.assistantModel !== prev.assistantModel) {
+      const why = assistantModelProblem(models, patch.assistantModel)
+      if (why) throw new Error(why)
+    }
+    if (isCustomModelRef(patch.workerModel) && patch.workerModel !== prev.workerModel && !findCustomModel(models, patch.workerModel))
+      throw new Error(`There's no model "${patch.workerModel.slice(7)}" in Settings → Models.`)
     // Your name: checked here too, against the agents as main sees them; Settings shows the same message first
     if (patch.userName !== undefined) {
       const r = checkUserName(String(patch.userName), agentNamesInUse())
       if ('error' in r) throw new Error(r.error)
       patch = { ...patch, userName: r.name }
     }
+    // a custom model's sessions live in their own Claude config folder (#314), so a switch between that and a Claude
+    // model can't resume the other side's conversation: it starts a new one instead of failing to resume
+    const crossing = !!patch.assistantModel && isCustomModelRef(patch.assistantModel) !== isCustomModelRef(prev.assistantModel)
+    if (crossing) patch = { ...patch, assistantSessionId: undefined }
     const next = setConfig(patch)
     if (patch.hotkey !== undefined && patch.hotkey !== prev.hotkey) registerHotkey(next.hotkey)
     if (patch.usagePollSec !== undefined && patch.usagePollSec !== prev.usagePollSec) startQuotaPolling(onQuota)
@@ -1675,7 +1747,11 @@ async function applyConfig(patch: Partial<AppConfig>): Promise<AppConfig> {
     if (patch.disabledExtensions && JSON.stringify(patch.disabledExtensions) !== JSON.stringify(prev.disabledExtensions)) loadExtensionSockets(true)
     if (patch.theme || patch.themeFollowSystem !== undefined || patch.themeLight || patch.themeDark) applyChrome()
     if (patch.assistantModel && patch.assistantModel !== prev.assistantModel)
-      assistant.note(`Corvid switched to ${choiceLabel(patch.assistantModel)}; the conversation carries over.`)
+      assistant.note(
+        crossing
+          ? `Corvid switched to ${choiceLabel(patch.assistantModel, next.models)}; it starts a new conversation with your next message.${isCustomModelRef(patch.assistantModel) ? ' This is experimental, and workers need your approval while it runs there.' : ''}`
+          : `Corvid switched to ${choiceLabel(patch.assistantModel, next.models)}; the conversation carries over.`
+      )
     if (patch.assistantPersonality && patch.assistantPersonality !== prev.assistantPersonality)
       assistant.note(`Corvid's personality set to ${patch.assistantPersonality}; it applies from your next message.`)
     if (patch.boardVoice && patch.boardVoice !== prev.boardVoice)
@@ -1683,12 +1759,14 @@ async function applyConfig(patch: Partial<AppConfig>): Promise<AppConfig> {
     const renamed = patch.userName !== undefined && patch.userName !== prev.userName
     if (renamed) assistant.note(`Your board name is now ${userLabel(next.userName)}. Corvid uses it from your next message; workers started from now on are told it, and @user still works.`)
     if (patch.workerModel && patch.workerModel !== prev.workerModel)
-      assistant.note(`New workers will use ${patch.workerModel === 'default' ? 'your Claude Code default model' : choiceLabel(patch.workerModel)}.`)
+      assistant.note(`New workers will use ${patch.workerModel === 'default' ? 'your Claude Code default model' : choiceLabel(patch.workerModel, next.models)}.`)
     // the effort levels (#238): Corvid's from its next session (the reload below), the workers' for new workers only
     if (patch.assistantEffort && patch.assistantEffort !== prev.assistantEffort)
       assistant.note(`Corvid's effort set to ${effortLabel(next.assistantEffort)}; the conversation carries over.`)
     if (patch.workerEffort && patch.workerEffort !== prev.workerEffort)
       assistant.note(`New workers will run at ${next.workerEffort === 'default' ? "your Claude Code default effort" : `${effortLabel(next.workerEffort)} effort`}.`)
+    if (patch.workerPermissionMode && patch.workerPermissionMode !== prev.workerPermissionMode)
+      assistant.note(`New workers will start in ${next.workerPermissionMode === 'default' ? "your Claude Code default permission mode" : `${permissionModeLabel(next.workerPermissionMode)} mode`}.`)
     if (patch.assistantModel || patch.assistantEffort || patch.assistantMode || patch.assistantPersonality || patch.limits || renamed) assistant.reload()
     if (patch.assistantMode || patch.limits || patch.workerModel) assistant.changed()
     if (patch.boardKeepDays !== undefined && patch.boardKeepDays !== prev.boardKeepDays) {
@@ -2043,8 +2121,8 @@ const withClock = (tools: ToolDef[], workerId: string): ToolDef[] =>
 const clockTool = (workerId: string): ToolDef => ({
   name: 'time_left',
   description:
-    'How long you have before the dashboard stops this session: minutes of work so far and minutes left, measured by the dashboard (time the computer sleeps or you wait for the user does not count). ' +
-    'You cannot tell the time yourself, so call this before you cut work short, skip a step or say you are running out of time.',
+    // why to call it is in the worker's system line (TIME_LIMIT_PROMPT), not repeated here (#308)
+    'Minutes of work so far and minutes left before the dashboard stops this session (sleep and waiting for the user do not count).',
   input: {},
   readOnly: true,
   run: () => workers.clockNote(workerId) ?? 'This session is not running as a worker, so no time limit applies.'
@@ -2058,30 +2136,35 @@ function initWorkers(endpoint: McpEndpoint): void {
       const verifying = !build && verify.isVerifyTask(w.taskId)
       // an agent resolving a Remove or Disable conflict (#117): its own report tool, git prompt and deny rules
       const resolving = !build && !verifying && resolveConflict.isResolveTask(w.taskId)
-      // the board voice is fixed when a worker starts; changing the setting applies to the next ones
-      const voice = effectiveVoice(getConfig().boardVoice, getConfig().boardVoiceCustom)
+      // the board voice is fixed when a worker starts; changing the setting applies to the next ones. A lean
+      // custom-model worker (#318) posts in the plain voice, gets no ping guide and pings nobody, and has fewer tools
+      const lean = w.lean === true
+      const voice = lean ? LEAN_VOICE : effectiveVoice(getConfig().boardVoice, getConfig().boardVoiceCustom)
+      const pings = lean ? { on: false, wake: false } : { on: getConfig().agentPings, wake: getConfig().agentPings && getConfig().agentPingWake }
+      const notesPart = workerNotesPart(lean)
+      const trim = <T extends { name: string }>(tools: T[]): T[] => (lean ? leanTools(tools) : tools)
       const granted = grantWorker(endpoint, w.id, [
         {
-          tools: noteTools(
-            { kind: 'agent', agentName: w.agentName, taskId: w.taskId, project: projectHome(w.project), request: () => w.request },
-            { findProject: (q) => findProjectPath(q), left: noteLeft }
+          tools: trim(
+            noteTools(
+              { kind: 'agent', agentName: w.agentName, taskId: w.taskId, project: projectHome(w.project), request: () => w.request },
+              { findProject: (q) => findProjectPath(q), left: noteLeft }
+            )
           ),
-          allowed: ['list_notes', 'read_note', 'create_note', 'append_to_note', 'update_note', 'delete_note'],
-          prompt: `${NOTES_PROMPT} Your note tools are mcp__corvid__list_notes, read_note, create_note, append_to_note, update_note and delete_note.`
+          ...notesPart
         },
         {
-          tools: [...withClock(boardTools({ kind: 'agent', agentName: w.agentName, taskId: w.taskId, avatar: w.avatar, voice }, boardDeps), w.id), clockTool(w.id)],
+          tools: [...withClock(trim(boardTools({ kind: 'agent', agentName: w.agentName, taskId: w.taskId, avatar: w.avatar, voice, ...(lean ? { lean } : {}) }, boardDeps)), w.id), clockTool(w.id)],
           allowed: ['read_messages', 'post_message', 'time_left'],
-          prompt: `${workerBoardPrompt({ ...w, voice, customVoice: getConfig().boardVoiceCustom, userName: getConfig().userName, pings: { on: getConfig().agentPings, wake: getConfig().agentPings && getConfig().agentPingWake } })} Your board tools are mcp__corvid__read_messages and post_message.`,
+          prompt: `${workerBoardPrompt({ ...w, voice, customVoice: getConfig().boardVoiceCustom, userName: getConfig().userName, pings })} Your board tools are mcp__corvid__read_messages and post_message.`,
           reminder: WORKER_BOARD_REMINDER
         },
         // files the user attached to its task (#187): read through this one tool, only its own task's
         {
           tools: taskFileTools({ kind: 'agent', taskId: w.taskId }),
           allowed: ['read_task_file'],
-          prompt:
-            taskFilesPrompt(listTasks().find((t) => t.id === w.taskId) ?? { id: w.taskId }) ||
-            `Files the user attaches to your task later can be listed and read with mcp__corvid__read_task_file. ${TASK_FILES_SAFETY}`
+          // with no files yet, the tool's own description says all there is (#308)
+          prompt: taskFilesPrompt(listTasks().find((t) => t.id === w.taskId) ?? { id: w.taskId })
         },
         remote.remoteAccess({ project: w.project, agent: `worker #${w.taskId}` }),
         connectors.connectionsAccess({
@@ -2095,7 +2178,8 @@ function initWorkers(endpoint: McpEndpoint): void {
             return [w.cwd, ...(pad ? [pad] : [])]
           }
         }),
-        drafts.draftAccess({ project: w.project, agent: `worker #${w.taskId}`, agentName: w.agentName, taskId: w.taskId }),
+        // no connector drafts for a lean worker (#318): their prompt and five tools are too big for a small context
+        lean ? null : drafts.draftAccess({ project: w.project, agent: `worker #${w.taskId}`, agentName: w.agentName, taskId: w.taskId }),
         extensionWorkerAccess({ project: w.project, agent: `worker #${w.taskId}`, taskId: w.taskId }),
         // an extension build (#98) gets submit_build_report and its own git prompt instead of merge_task_branch
         build ? install.buildAccess(w.taskId, w.branch) : verifying ? verify.verifyAccess(w.taskId, w.branch) : resolving ? resolveConflict.resolveAccess(w.taskId, w.branch) : (w.git ?? null),
@@ -2123,6 +2207,8 @@ function initWorkers(endpoint: McpEndpoint): void {
       remote.cancelForAgent(`worker #${w.taskId}`)
       connectors.dropResultsOf(`worker #${w.taskId}`)
     },
+    // a start refused after its tools were granted (#318's size check): its token and config file go again
+    dropAccess: (workerId) => revokeWorker(endpoint, workerId),
     announce: (w, text) => {
       try {
         boardPosted(boardPost({ author: 'corvid', agentName: w.agentName, taskId: w.taskId, text }))
@@ -2136,6 +2222,8 @@ function initWorkers(endpoint: McpEndpoint): void {
     quota: freshestQuota,
     fableProblem,
     confirmOverLimit,
+    // the assistant counts toward a custom model's cap while it runs on it (#315)
+    assistantModel: assistant.runningModel,
     refreshQuota: async () => void (await fetchQuota(onQuota)),
     // a worker works in the task's project's folder, looked up by id (#73)
     task: (id) => {
@@ -2356,6 +2444,18 @@ app.whenReady().then(() => {
     })
     return true
   })
+  // start automatically when its blockers are done (#282): one dashboard notice per task
+  autoStart.initAutoStart({
+    notice: (text, taskId) => {
+      try {
+        boardPosted(boardPost({ author: 'corvid', taskId, text: cutText(text, 1800) }))
+      } catch (e) {
+        console.error('board notice failed', e)
+      }
+    },
+    note: (text) => assistant.note(text)
+  })
+  onMovedToDone((ids) => void autoStart.afterDone(ids))
   initTasks((tasks) => send('tasks', tasks), {
     resolve: (q) => {
       const p = projectStore.resolveProject(q)
@@ -2363,7 +2463,8 @@ app.whenReady().then(() => {
       return p && folder ? { id: p.id, folder } : undefined
     },
     forPath: projectStore.projectIdForPath,
-    folder: projectStore.projectSubfolder
+    folder: projectStore.projectSubfolder,
+    models: () => getConfig().models
   })
   initNotes((notes) => send('notes', notes))
   lineage.initLineage(app.getPath('userData'))

@@ -1,8 +1,9 @@
 import { app, powerMonitor } from 'electron'
 import { taskFilesPrompt } from '@shared/taskFiles'
-import { thesisDose } from '@shared/corvidThesis'
+import { leanDose, thesisDose } from '@shared/corvidThesis'
+import { workerSystemLine } from '@shared/workerPrompt'
 import { randomUUID } from 'node:crypto'
-import { existsSync, readdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import type { CrowLook, LiveSession, Proposal, Task, Worker } from '@shared/types'
@@ -12,7 +13,10 @@ import { projectKey } from '@shared/projects'
 import { nameKey } from '@shared/board'
 import { choiceLabel, launchArgs, taskModel } from '@shared/models'
 import { isReasoningEffort } from '@shared/reasoningEffort'
+import { customModelId, effectiveAssistantMode, customModelRef, customProfile, findCustomModel, isCustomModelRef, type CustomModel } from '@shared/customModels'
+import { LEAN_CLI_FLAGS, startupProblem } from '@shared/leanProfile'
 import { BLOCKER_STATE, openBlockers } from '@shared/blockers'
+import { autoStartAction, type AutoStartAction } from '@shared/autoStart'
 import type { AccessPart } from './agentAccess'
 import { cleanUp, prepareBranch, setActive, unsavedWork, type AgentBranch, type BranchPlan } from './agentGit'
 import { clampWorkers, overFableGate, overGates } from '@shared/workerLimits'
@@ -24,6 +28,10 @@ import { killByNameExamples } from './platform/agentWords'
 import { endedRefusal } from './agentPing'
 import { CLAUDE_NOT_FOUND, resolveClaude } from './claudeBin'
 import * as pty from './pty'
+import { customLaunch } from './customLaunch'
+import { healthRefusal } from './customHealth'
+import { customConfigDir } from './agentDeny'
+import { BLOCKING, newWatch, scanChunk, troubleMessage, type ModelWatch } from './modelWatch'
 import * as lineage from './lineage'
 import { pastPathsOf } from './projectStore'
 import { allowWorkers } from './testCopy'
@@ -47,8 +55,12 @@ export interface WorkerDeps {
   changed: () => void
   note: (text: string, tone: 'info' | 'warn' | 'error') => void
   /** extra CLI args and system-prompt text for a worker: its notes tools, and its project's remote systems if any.
-   *  `request` is what the user asked of it (task title, notes, extra instructions). */
-  access: (w: { id: string; taskId: number; project: string; cwd: string; agentName?: string; avatar?: CrowLook; request: string; git?: AccessPart; branch?: AgentBranch }) => { args: string[]; prompt: string; reminder?: string } | null
+   *  `request` is what the user asked of it (task title, notes, extra instructions).
+   *  `lean` is a lean custom-model worker (#318): fewer tools and a shorter prompt, never fewer safety rules.
+   *  `toolChars` is about how much its tools take in the session's context, for the start-up size check. */
+  access: (w: { id: string; taskId: number; project: string; cwd: string; agentName?: string; avatar?: CrowLook; request: string; git?: AccessPart; branch?: AgentBranch; lean?: boolean }) => { args: string[]; prompt: string; reminder?: string; toolChars?: number } | null
+  /** take back what access() gave a worker that then didn't start */
+  dropAccess?: (workerId: string) => void
   /** a worker's branch was merged or cleaned up: the project's git state changed */
   gitChanged: (repo: string) => void
   /** a worker stopped or exited: take back what access() gave it */
@@ -63,6 +75,10 @@ export interface WorkerDeps {
   folderNote?: (task: Task) => string | undefined
   /** ask the user in Corvid's own dialog whether to start an agent above the usage limit (#93); nothing else answers it */
   confirmOverLimit: (r: ConfirmRequest) => Promise<{ ok: boolean; dontAsk: boolean; timedOut: boolean }>
+  /** the model the assistant's session runs on while it runs, else undefined: it counts toward a custom model's cap */
+  assistantModel?: () => string | undefined
+  /** why a custom model's server can't take task #taskId now, or null (#315); customHealth's check unless a test swaps it */
+  modelHealth?: (m: CustomModel, taskId: number) => Promise<string | null>
 }
 
 let deps: WorkerDeps
@@ -123,6 +139,7 @@ function remember(w: Worker, cwd?: string): void {
 export function initWorkers(d: WorkerDeps): void {
   deps = d
   loadRecords()
+  pty.onTerminalData(watchOutput)
   pty.onTerminalExit((termId, code) => {
     const w = workers.find((x) => x.termId === termId && x.state === 'running')
     if (!w) return
@@ -134,6 +151,7 @@ export function initWorkers(d: WorkerDeps): void {
     w.reason = code === 0 ? 'Session closed' : `Exited with code ${code}`
     w.closeAt = w.closeHeld = undefined
     quiet.delete(w.id)
+    watches.delete(w.id)
     remember(w)
     deps.ended(w)
     void finishBranch(w)
@@ -167,6 +185,29 @@ const concurrencyBlocker = (): string | null => {
   return null
 }
 
+// ---------- a custom model's own cap (#315, N175 section 4) ----------
+//
+// One GPU serves few sessions at once, so each entry has maxRunning (1 when unset). Its workers count toward it, and
+// so does the assistant while it runs on that model. They still count toward the global cap above too (decision 1).
+
+/** Starts on each custom model (custom:<id>) past the check but not yet running, like `starting` for the global cap. */
+const startingOn = new Map<string, number>()
+
+/** Sessions on custom model `ref` now: its running workers, the ones starting, and the assistant when it's on it. */
+export function customRunning(ref: string): number {
+  return runningWorkers().filter((w) => w.model === ref).length + (startingOn.get(ref) ?? 0) + (deps?.assistantModel?.() === ref ? 1 : 0)
+}
+
+/** Why one more session can't start on custom model `m`, or null. */
+function customCapBlocker(m: CustomModel): string | null {
+  const max = m.maxRunning ?? 1
+  const n = customRunning(customModelRef(m.id))
+  return n >= max ? `${m.label} already has ${n} of ${max} session${max === 1 ? '' : 's'} running, which is its limit in Settings → Models.` : null
+}
+
+/** The model the plan usage gates are asked about for an agent that always runs on Claude, whatever the worker model. */
+const claudeModel = (model: string): string => (isCustomModelRef(model) ? 'default' : model)
+
 /** Usage as the gates see it: the freshest known numbers, when they were read, and when the 5-hour window resets. */
 type Usage = { fiveHour?: number; week?: number; fable?: number; at: number; resets5h?: number }
 
@@ -183,6 +224,8 @@ interface OverLimit {
 
 /** Over the usage limit, or null when nothing is over or the limit is off. Unknown usage counts as over, so it asks. */
 function overLimit(q: Usage | null, model: string = getConfig().workerModel): OverLimit | null {
+  // a custom model spends no plan usage: no gate, no ask-first dialog and no Fable check for it (#315)
+  if (isCustomModelRef(model)) return null
   const l = getConfig().limits
   if (!l.usageLimit || (!l.gate5hOn && !l.gateWeekOn)) return null
   if (!q) return { q, stale: false, five: false, week: false, fable: false }
@@ -239,7 +282,8 @@ async function usageNow(): Promise<Usage | null> {
 /** The #93 dialog text when usage is over the limit, or null: for asking before an extension scan (#96). */
 export async function usageOverText(model?: string): Promise<string | null> {
   if (!deps) return null
-  const o = overLimit(await usageNow(), model)
+  // the scan and /discuss panels always run on Claude, so a custom worker model doesn't lift their gate (N175 section 2)
+  const o = overLimit(await usageNow(), claudeModel(model ?? getConfig().workerModel))
   return o ? overText(o) : null
 }
 
@@ -307,7 +351,8 @@ async function askOverLimit(task: Task, o: OverLimit): Promise<string | null> {
 export async function extraAgentBlocker(label: string): Promise<string | null> {
   const busy = concurrencyBlocker()
   if (busy) return busy
-  const o = overLimit(await usageNow())
+  // these agents always run on Claude, whatever the worker model (N175 section 2)
+  const o = overLimit(await usageNow(), claudeModel(getConfig().workerModel))
   if (!o) return null
   if (getConfig().limits.overLimit === 'block') return usageBlocker(o)
   return askOverLimit({ id: 0, title: label } as Task, o)
@@ -376,8 +421,10 @@ export async function startWorker(
   instructions?: string,
   resume?: ResumeRequest,
   /** over the usage limit, don't wait for the answer: return `asked` now, and start later only if the user says yes */
-  detach = false
-): Promise<{ worker?: Worker; error?: string; asked?: string }> {
+  detach = false,
+  /** an automatic start (#282): over the usage limit it never opens the dialog, it returns `overLimit` and starts nothing */
+  noDialog = false
+): Promise<{ worker?: Worker; error?: string; asked?: string; overLimit?: boolean }> {
   // real workers spend the user's Claude usage: a test copy starts one only when the test opts in (#85)
   if (!allowWorkers()) return { error: 'This is a test copy of Corvid, so it starts no workers (DASH_TEST_WORKERS=1 allows them).' }
   const task = deps.task(taskId)
@@ -393,12 +440,24 @@ export async function startWorker(
   if (busy) return { error: busy }
   // the task's own model beats the worker model from Settings (#136); Fable is checked against the plan first
   const model = taskModel(task, getConfig().workerModel)
+  // a custom model whose entry is gone never falls back to a Claude model, which would spend plan usage (N175)
+  const entry = findCustomModel(getConfig().models, model)
+  if (isCustomModelRef(model) && !entry)
+    return { error: `No agent started for #${taskId}: its model "${customModelId(model)}" isn't in Settings → Models any more. Add it back, or pick another model for it in the task's editor${task.model ? '' : ' or in Settings'}.` }
+  if (entry) {
+    // its own cap, then its server: up, and with the context the entry says (#315). Nothing starts or stops the server
+    const full = customCapBlocker(entry)
+    if (full) return { error: `No agent started for #${taskId}: ${full}` }
+    const down = await (deps.modelHealth ?? healthRefusal)(entry, taskId)
+    if (down) return { error: `No agent started for #${taskId}: ${down}` }
+  }
   if (model === 'fable') {
     const problem = await deps.fableProblem?.()
     if (problem) return { error: `No agent started for #${taskId}: ${problem} Pick another model for it in the task's editor${task.model ? '' : ' or in Settings'}.` }
   }
   const over = overLimit(await usageNow(), model)
-  if (over && getConfig().limits.overLimit === 'block') return { error: usageBlocker(over) }
+  if (over && getConfig().limits.overLimit === 'block') return { error: usageBlocker(over), ...(noDialog ? { overLimit: true } : {}) }
+  if (over && noDialog) return { error: `Usage is over the limit (${overShort(over)}).`, overLimit: true }
   if (over && detach) {
     void confirmedStart(task, over, instructions, resume).then((r) =>
       deps.note(
@@ -438,11 +497,32 @@ async function launchChecked(task: Task, instructions?: string, resume?: ResumeR
   if (!task.project) return { error: `Task #${task.id} has no project set, so there's no folder to work in.` }
   const blocked = concurrencyBlocker()
   if (blocked) return { error: blocked }
+  // a custom model's own cap once more too, since the health check waited on the server (#315)
+  const model = taskModel(task, getConfig().workerModel)
+  const entry = findCustomModel(getConfig().models, model)
+  if (isCustomModelRef(model) && !entry) return { error: `No agent started for #${task.id}: its model "${customModelId(model)}" isn't in Settings → Models any more.` }
+  const full = entry && customCapBlocker(entry)
+  if (full) return { error: `No agent started for #${task.id}: ${full}` }
   starting++
+  if (entry) startingOn.set(model, (startingOn.get(model) ?? 0) + 1)
   try {
     return await launch({ ...task, project: task.project }, instructions, resume)
   } finally {
     starting--
+    if (entry) {
+      const left = (startingOn.get(model) ?? 1) - 1
+      if (left > 0) startingOn.set(model, left)
+      else startingOn.delete(model)
+    }
+  }
+}
+
+/** The size of the CLAUDE.md Claude Code loads from the folder a worker starts in, 0 when there is none. */
+function projectMemoryChars(cwd: string): number {
+  try {
+    return statSync(join(cwd, 'CLAUDE.md')).size
+  } catch {
+    return 0
   }
 }
 
@@ -451,9 +531,10 @@ function corvidLine(task: Task): string {
   const p = builtinProject()
   if (!p || task.projectId !== p.id) return ''
   return (
-    ` This project is Corvid's own source: the running app is built from the main branch of this checkout, and a rebuild (npm run deploy) restarts it and ends every agent, so deploy only when the user asks and run the typecheck first. Be careful with changes to settings, stored data and scripts/deploy.mjs: a broken build breaks the tool itself.` +
+    ` This project is Corvid's own source: the running app is built from the main branch of this checkout, and a rebuild (npm run deploy) restarts it and ends every agent, so deploy only when the user asks, and run the typecheck first. ` +
+    `Be careful with changes to settings, stored data and scripts/deploy.mjs: a broken build breaks the tool itself.` +
     // #85: the rules for testing the app you're running in
-    ` To test Corvid, start copies only with npm run test-instance (it gives each copy its own data folder, port and owner) and stop them with its stop command. Never kill or quit Corvid by name or image (${killByNameExamples()}), never point anything at the real data folder or the real app, never write to ~/.claude, and never deploy unless the user asked.`
+    ` Test Corvid only in copies started with npm run test-instance (each gets its own data folder, port and owner), stopped with its stop command. Never kill or quit Corvid by name or image (${killByNameExamples()}), never point anything at the real data folder or the real app, and never write to ~/.claude.`
   )
 }
 
@@ -484,11 +565,21 @@ async function launch(task: Task & { project: string }, instructions?: string, r
   if (plan.kind === 'current' && plan.reason) deps.note(`#${task.id} works on the current branch: ${plan.reason}.`, 'info')
 
   const minutes = getConfig().limits.workerMinutes
-  const thesis = thesisDose(builtinProject()?.id === task.projectId ? 'full' : 'short', getConfig().agentSuggestions !== false).replace(/\n/g, ' ')
+  const model = taskModel(task, getConfig().workerModel)
+  // a custom model (#314): its own server, env and config folder, no effort, and always Claude Code's default
+  // permission mode (N175 decisions 5 and 9). startWorker already refused one whose entry is gone
+  const customEntry = findCustomModel(getConfig().models, model)
+  const custom = customEntry && customLaunch(customEntry, customConfigDir())
+  // the lean profile (#318, N175 section 5): an entry's own choice, else lean below 100k of context
+  const profile = customEntry ? customProfile(customEntry) : undefined
+  const lean = profile === 'lean'
+  const thesis = lean
+    ? // just the three sentences, on the Corvid project too and with no suggest rule (N175 decision 3)
+      leanDose().replace(/\n/g, ' ')
+    : thesisDose(builtinProject()?.id === task.projectId ? 'full' : 'short', getConfig().agentSuggestions !== false).replace(/\n/g, ' ')
   const system =
-    `You were started by Corvid, the user's dashboard assistant, to work on a single task (#${task.id}). Stay focused on it. ` +
-    `Do not push to remotes, publish, deploy, or delete data unless the task explicitly asks for it. ` +
-    TIME_LIMIT_PROMPT(minutes) +
+    // the project-memory rule only with the Settings switch on (#308); absent in config.json means off
+    workerSystemLine(task.id, minutes, getConfig().workerProjectMemory === true) +
     // what Corvid is (#202): the full page on the user's own copy of Corvid, the three sentences and the suggest rule elsewhere
     ` ${thesis}`
   const name = nameAgent(
@@ -498,10 +589,11 @@ async function launch(task: Task & { project: string }, instructions?: string, r
   )
   const avatar = lookForAgent(task.id, resume?.avatar ?? workers.find((w) => w.taskId === task.id)?.avatar)
   const title = workerTitle(task, name)
-  const model = taskModel(task, getConfig().workerModel)
   // the effort from Settings (#238), for new workers only; a running worker keeps the one it started with
   const effortSetting = getConfig().workerEffort
-  const effort = isReasoningEffort(effortSetting) ? effortSetting : undefined
+  const effort = !custom && isReasoningEffort(effortSetting) ? effortSetting : undefined
+  // the permission mode from Settings (#306), also for new workers only; launchArgs passes nothing for the default
+  const permissionMode = getConfig().workerPermissionMode
   const id = randomUUID().slice(0, 8)
   const access = deps.access({
     id,
@@ -512,6 +604,7 @@ async function launch(task: Task & { project: string }, instructions?: string, r
     avatar,
     request: [task.title, task.notes, instructions].filter(Boolean).join('\n'),
     branch: b,
+    ...(lean ? { lean } : {}),
     git: b
       ? gitAccess(b, `#${task.id} ${task.title}`, () => getConfig().pushAfterMerge, (message) => {
           const w = workers.find((x) => x.id === id)
@@ -546,14 +639,25 @@ async function launch(task: Task & { project: string }, instructions?: string, r
           (access?.reminder ? ` ${access.reminder}` : '') +
           ` When you're done, finish with a short summary of what you changed and anything left to do.`
       )
+  const systemAppend = access ? `${system} ${access.prompt}` : system
+  // a custom model's start-up size (#318): refused when the session would start too close to its context's end
+  if (customEntry && profile) {
+    const big = startupProblem(customEntry, profile, systemAppend.length + prompt.length + (access?.toolChars ?? 0) + projectMemoryChars(b?.cwd ?? task.project), task.id)
+    if (big) {
+      deps.dropAccess?.(id)
+      if (b && !b.reused) await cleanUp(b)
+      return { error: `No agent started for #${task.id}: ${big}` }
+    }
+  }
   const term = pty.launchWorker(
     bin.path,
     b?.cwd ?? task.project,
     title,
     prompt,
-    access ? `${system} ${access.prompt}` : system,
-    [...(resume ? ['--resume', resume.sessionId] : []), ...launchArgs(model, effort), ...(access?.args ?? [])],
-    name
+    systemAppend,
+    [...(resume ? ['--resume', resume.sessionId] : []), ...(custom ? [...custom.args, ...(lean ? LEAN_CLI_FLAGS : [])] : launchArgs(model, effort, permissionMode)), ...(access?.args ?? [])],
+    name,
+    custom ? { env: custom.env, unset: custom.unset } : undefined
   )
 
   // the lineage log (#203): what this worker was given, measured here where it is put together
@@ -577,6 +681,8 @@ async function launch(task: Task & { project: string }, instructions?: string, r
     ...(b && { branch: b.branch, worktree: b.worktree, git: { state: 'working' as const } })
   }
   remember(worker, b?.cwd ?? task.project)
+  // its model's health while it runs (#319): only a custom-model worker is watched, never a Claude one
+  if (customEntry) watches.set(id, newWatch(worker.startedAt))
   if (b) {
     branches.set(id, b)
     setActive(b, true)
@@ -598,11 +704,36 @@ export async function requestWorker(
   instructions?: string,
   detach = false
 ): Promise<{ proposal?: Proposal; worker?: Worker; error?: string; asked?: string }> {
-  if (getConfig().assistantMode === 'ask') {
+  // always "ask" while Corvid runs on a custom model (#320)
+  if (effectiveAssistantMode(getConfig()) === 'ask') {
     const p = propose(taskId, instructions)
     return 'error' in p ? { error: p.error } : { proposal: p }
   }
   return startWorker(taskId, instructions, undefined, detach)
+}
+
+/**
+ * An automatic start, when the task's blockers are done (#282). The same path as any start: in "ask" mode the usual
+ * proposal, otherwise startWorker with every check it runs (the cap, the usage gates, the task's model, Done, a worker
+ * already running). It never opens the usage dialog and never waits: no free slot or usage over the limit comes back
+ * as that action and nothing starts (autoStart.ts posts the notice, and keeps a task waiting for a slot).
+ */
+export async function autoStartWorker(taskId: number): Promise<{ action: AutoStartAction | 'failed'; worker?: Worker; error?: string }> {
+  const mode = effectiveAssistantMode(getConfig())
+  const task = deps.task(taskId)
+  const free = cap() - runningWorkers().length - starting
+  const usageOver = mode !== 'ask' && free > 0 && !!overLimit(await usageNow(), task ? taskModel(task, getConfig().workerModel) : undefined)
+  const action = autoStartAction({ mode, freeSlots: free, usageOver })
+  if (action === 'propose') {
+    const p = propose(taskId)
+    return 'error' in p ? { action: 'failed', error: p.error } : { action }
+  }
+  if (action !== 'start') return { action }
+  const r = await startWorker(taskId, undefined, undefined, false, true)
+  if (r.worker) return { action, worker: r.worker }
+  if (r.overLimit) return { action: 'over-limit' }
+  // a slot taken while usage was being checked: wait for the next one like any full cap
+  return concurrencyBlocker() ? { action: 'no-slot' } : { action: 'failed', error: r.error }
 }
 
 /** `state` finished is for a finished agent the dashboard closed (#70), so it doesn't read as stopped by you or a failure. */
@@ -616,6 +747,7 @@ export function stopWorker(id: string, reason = 'Stopped by you', state: 'stoppe
   w.reason = reason
   w.closeAt = w.closeHeld = undefined
   quiet.delete(w.id)
+  watches.delete(w.id)
   remember(w)
   pty.kill(w.termId)
   deps.ended(w)
@@ -639,17 +771,50 @@ export function stopAll(reason = 'Stopped with kill-all'): number {
   return running.length
 }
 
-// ---------- the time limit (#81) ----------
+// ---------- the run-time health watch on custom-model workers (#319, N175 section 6) ----------
+//
+// The pre-start check (customHealth.ts) only says the server answered once. While a worker on a custom model runs, its
+// terminal output is read for Claude Code's own error lines and the prompts that block a session before it starts
+// (modelWatch.ts). Each kind is reported once per worker: a dashboard notice on the board, a note, and the card's error
+// state. Nothing here restarts it or moves its task to a Claude model: the user decides what happens next.
 
-/**
- * What a worker is told about its time limit. Agents can't see a clock and tend to think far more time
- * has passed than has (they wrapped up "at the 45-minute limit" after 8 to 15 minutes), so they're told
- * to ask instead of guessing.
- */
-export const TIME_LIMIT_PROMPT = (minutes: number): string =>
-  `The dashboard stops this session after ${minutes} minutes of work; time the computer sleeps or you wait for the user doesn't count, and every start or resume gets a fresh clock. ` +
-  'You cannot feel time passing and will tend to think much more has passed than really has, so never stop early, skip steps or say you ran out of time on a guess: ' +
-  'call time_left (mcp__corvid__time_left) to see how long you have, always before cutting anything short. Your board tool results show it too, and warn you when 5 minutes are left.'
+/** worker id -> its watch; only custom-model workers have one */
+const watches = new Map<string, ModelWatch>()
+
+/** A chunk of some terminal's output: looked at only when it's a watched worker's. */
+function watchOutput(termId: string, data: string): void {
+  if (!watches.size) return
+  const w = workers.find((x) => x.termId === termId && x.state === 'running')
+  const watch = w && watches.get(w.id)
+  if (!w || !watch) return
+  try {
+    const found = scanChunk(watch, data, Date.now())
+    if (!found.length) return
+    const entry = findCustomModel(getConfig().models, w.model)
+    if (!entry) return
+    for (const t of found) {
+      const message = troubleMessage(t, entry, w.taskId, w.branch)
+      w.modelTrouble = { kind: t.kind, message, at: Date.now() }
+      console.warn(`[workers] #${w.taskId} on ${entry.label}: ${t.kind}: ${t.line}`)
+      deps.note(message, BLOCKING.includes(t.kind) ? 'warn' : 'error')
+      deps.announce(w, message)
+    }
+    deps.changed()
+  } catch (e) {
+    console.error('[workers] the model watch failed', e)
+  }
+}
+
+/** It went busy on a turn: start-up prompts are behind it, so a card stuck on one is cleared. True when the card changed. */
+function pastStartUp(w: Worker): boolean {
+  const watch = watches.get(w.id)
+  if (watch) watch.sawBusy = true
+  if (!w.modelTrouble || !BLOCKING.includes(w.modelTrouble.kind)) return false
+  w.modelTrouble = undefined
+  return true
+}
+
+// ---------- the time limit (#81); what workers are told about it is in @shared/workerPrompt ----------
 
 let lastTick = Date.now()
 let asleep = false
@@ -756,6 +921,7 @@ export function updateFromLive(list: LiveSession[]): void {
       )
     }
     if (w.liveStatus !== l.status || w.sessionId !== l.sessionId) changed = true
+    if (l.status === 'busy' && pastStartUp(w)) changed = true
     w.liveStatus = l.status
     if (l.sessionId && w.sessionId !== l.sessionId) {
       w.sessionId = l.sessionId
@@ -787,13 +953,14 @@ function exitReason(termId: string): string {
 function failedStart(w: Worker, code: number): boolean {
   if (code === 0 || Date.now() - w.startedAt > START_FAIL_MS) return false
   const reason = exitReason(w.termId)
-  const on = w.model === 'default' ? 'your Claude Code default model' : choiceLabel(w.model)
+  const on = w.model === 'default' ? 'your Claude Code default model' : choiceLabel(w.model, getConfig().models)
   w.state = 'exited'
   w.endedAt = Date.now()
   pauseClock(w, w.endedAt)
   w.liveStatus = undefined
   w.reason = `Didn't start on ${on}: ${reason}`
   quiet.delete(w.id)
+  watches.delete(w.id)
   remember(w)
   deps.ended(w)
   void finishBranch(w)
@@ -1018,15 +1185,21 @@ function pruneEnded(): void {
 
 /** How Claude Code names a folder's session directory under ~/.claude/projects: every other character becomes "-". */
 const sessionKey = (cwd: string): string => cwd.replace(/[\\/]+$/, '').replace(/[^a-zA-Z0-9]/g, '-').toLowerCase()
-const claudeProjects = (): string => join(process.env.CLAUDE_CONFIG_DIR || join(homedir(), '.claude'), 'projects')
+/** Claude Code's projects folder, then the custom models' one (#317): a session on the user's own model is kept there. */
+const claudeProjects = (): string[] => [
+  join(process.env.CLAUDE_CONFIG_DIR || join(homedir(), '.claude'), 'projects'),
+  join(customConfigDir(), 'projects')
+]
 
 /** The session directory (as a sessionKey) that holds this session's transcript, or undefined when Claude Code has deleted it. */
-function sessionFolder(sessionId: string): string | undefined {
+export function sessionFolder(sessionId: string): string | undefined {
   if (!/^[\w-]+$/.test(sessionId)) return undefined
-  try {
-    for (const d of readdirSync(claudeProjects())) if (existsSync(join(claudeProjects(), d, `${sessionId}.jsonl`))) return d.toLowerCase()
-  } catch {
-    /* no Claude data */
+  for (const root of claudeProjects()) {
+    try {
+      for (const d of readdirSync(root)) if (existsSync(join(root, d, `${sessionId}.jsonl`))) return d.toLowerCase()
+    } catch {
+      /* no Claude data here */
+    }
   }
   return undefined
 }

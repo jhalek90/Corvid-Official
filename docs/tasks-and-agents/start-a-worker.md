@@ -8,7 +8,8 @@ order: 2
 # Start a worker
 
 **Automate** on a task card starts a worker on that task. A worker is an interactive Claude Code session in a Corvid
-terminal, in the task's project folder. It has Claude Code's normal permission prompts.
+terminal, in the task's project folder. It has Claude Code's normal permission prompts, unless you choose another
+[permission mode](#permission-mode).
 
 ## Before you start
 
@@ -28,6 +29,43 @@ CAUTION: every worker uses your Claude plan usage. Several workers at once use i
 4. If your usage is high, a dialog asks first. See [Usage limits](../usage/usage-limits.md).
 
 The worker reads the task's title, notes and files. It posts on the message board when it starts and when it is done.
+
+## Permission mode
+
+**Settings** → **Corvid and models** → **Worker permission mode** sets what new workers may do without asking you.
+Corvid gives it to Claude Code with its `--permission-mode` option.
+
+| Choice | What a worker does |
+|---|---|
+| **Claude Code default** | Corvid passes nothing. The worker asks as Claude Code and the project decide. This is the default. |
+| **Accept edits** | The worker edits files without asking. Commands still ask. |
+
+- The choice applies to workers that start after the change. Running workers keep theirs.
+- Corvid itself does not get the permission mode. Only workers do.
+- A project's own `.claude/settings.json` can still ask for more prompts, for example with its `ask` and `deny` rules.
+- Corvid never offers the mode that skips every check. A config file that names another mode goes back to
+  **Claude Code default**.
+
+## Project memory
+
+Claude Code reads a project's `CLAUDE.md` at the start of every session, also in a worker's worktree. With
+**Settings** → **Agents and workers** → **Workers keep project memory in CLAUDE.md** on, workers also write to it, so
+the next worker on the project starts with what earlier tasks found out.
+
+- A worker adds one short line under a "Project notes" section when its task sets or reveals a convention, a
+  decision or a gotcha that a later task must know and that the code does not show.
+- It creates `CLAUDE.md` with a one-line header if the project has none.
+- It does not log what it did, because git keeps that. It does not repeat a line that is already there. It updates a
+  line that its task made wrong instead of adding one that contradicts it.
+- The line is committed and merged with the rest of the worker's branch.
+- The setting is on for new installs. An existing install keeps its current setting after an update; if you never
+  changed it, it stays off.
+- Turn it off where workers should not write a `CLAUDE.md`, for example in benchmark or scratch repos.
+- A change applies to workers that start after it.
+
+NOTE: two workers that run at the same time can both add a line in the same place. The second merge then conflicts
+in `CLAUDE.md`, and Corvid's merge stops as it does for any conflict: nothing changes on the main branch, and the
+worker leaves its branch for you. Keep both lines when you merge it.
 
 ## Limits Corvid enforces
 

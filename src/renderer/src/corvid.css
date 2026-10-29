@@ -282,6 +282,71 @@
   font-weight: 600;
   font-size: 12.5px;
 }
+/* Corvid's context ring (#326): fills with its context, amber past 60%, red past 85%; a click opens Compact and Clear */
+.cv-ctx {
+  position: relative;
+  display: flex;
+}
+.cv-ring {
+  display: inline-flex;
+  padding: 2px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+}
+.cv-ring:hover {
+  background: var(--bg-3);
+}
+/* the ring itself, shared with the agent cards' context chip (#327) */
+.ctx-ring {
+  flex: none;
+  --ring: var(--accent);
+}
+.ctx-ring.amber {
+  --ring: var(--warn);
+}
+.ctx-ring.red {
+  --ring: var(--danger);
+}
+.ctx-ring .track {
+  fill: none;
+  stroke: var(--line-3);
+  stroke-width: 2.4;
+}
+.ctx-ring .fill {
+  fill: none;
+  stroke: var(--ring);
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  transition: stroke-dasharray 0.4s ease;
+}
+.cv-ring.pending .fill {
+  stroke-dasharray: 3 3;
+  animation: cv-ring-wait 1.2s linear infinite;
+}
+@keyframes cv-ring-wait {
+  to {
+    stroke-dashoffset: -12;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ctx-ring .fill,
+  .cv-ring.pending .fill {
+    transition: none;
+    animation: none;
+  }
+}
+.menu.cv-ctx-menu {
+  left: 0;
+  top: 24px;
+  min-width: 210px;
+}
+.menu.cv-ctx-menu .mi:disabled {
+  color: var(--text-4);
+  background: transparent;
+  cursor: default;
+}
 .cv-switches {
   display: flex;
   gap: 6px;
@@ -300,6 +365,16 @@
 }
 .btn.stop {
   color: var(--danger);
+}
+/* Corvid couldn't start on its custom model (#320): the reason, and the one button that switches it to Haiku */
+.cv-down {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+  font-size: 11.5px;
+  color: var(--warn);
 }
 
 /* ---------- the Agents view: approvals ---------- */

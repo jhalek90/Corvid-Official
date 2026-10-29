@@ -27,11 +27,14 @@ Settings for Corvid, the assistant you talk to on the message board.
 | **Model** | Haiku | The model Corvid itself runs on. Haiku costs the least for chat. |
 | **Effort** | Claude Code default | How hard Corvid thinks before it answers. **Claude Code default** passes nothing, so Claude Code uses its own default. A change applies from Corvid's next session, like a model change. The conversation carries over. |
 | **Personality** | Default | The tone of Corvid's replies: **Default**, **Strict** or **Casual**. It applies from your next message. |
-| **Worker model** | Default | The model new workers run on. **Default** uses your Claude Code default model, and the label shows which one it is. A task can pick its own model. |
-| **Worker effort** | Claude Code default | How hard new workers think. It applies to workers that start after the change. Running workers keep their effort. |
+| **Worker model** | Default | The model new workers run on. **Default** uses your Claude Code default model, and the label shows which one it is. A task can pick its own model. Your own models show under **Your models**. |
+| **Worker effort** | Claude Code default | How hard new workers think. It applies to workers that start after the change. Running workers keep their effort. Workers on your own models ignore it. |
+| **Worker permission mode** | Claude Code default | What new workers may do without asking you. **Claude Code default** passes nothing. **Accept edits** lets workers edit files without asking, and commands still ask. It applies to workers that start after the change. Workers on your own models always start in Claude Code's default mode. See [Permission mode](../tasks-and-agents/start-a-worker.md#permission-mode). |
 | **Untagged messages go to Corvid** | On | A message with no @mention goes to Corvid. Off, only messages with @corvid reach it. |
 
-Every model list offers Haiku, Sonnet, Opus and Fable, cheapest first.
+Every model list offers Haiku, Sonnet, Opus and Fable, cheapest first. **Worker model** and **Model** also list your
+own models from the **Models** card, under **Your models**. **Model** offers only the ones with a context of 64,000
+tokens or more, as an experiment.
 
 Every effort list offers **Claude Code default**, **Low**, **Medium**, **High**, **Extra high** and **Max**. Corvid
 gives the level to Claude Code with its `--effort` option. A higher effort is slower and uses more of your usage. See
@@ -43,6 +46,38 @@ dialog asks you to confirm with **Use Fable** or **Cancel**. See
 
 Change **Untagged messages go to Corvid** to off when you post a lot of messages that Corvid does not need to answer.
 Each message to Corvid uses some of your Claude usage.
+
+## Models
+
+Your own models: model servers on this computer, such as `llama-server`, that workers can run on with no plan usage.
+With no models here, Corvid starts every session the same way as before. See
+[Your own models](../tasks-and-agents/your-own-models.md).
+
+| Setting | Default | What it does |
+|---|---|---|
+| **Add model** | | Opens a form for a new model. |
+| **Test** | | Asks the model's server whether it answers, and with what context. It only reads. |
+| **Set up** | | Opens one Claude Code terminal on the model, so you answer Claude Code's first-run questions and trust the folder once. |
+| **Edit** | | Changes the model's fields. The id cannot change. |
+| **Remove** | | Removes the model after you confirm. The confirmation names the tasks and settings that still use it. |
+
+Each model has these fields:
+
+| Field | Default | What it does |
+|---|---|---|
+| **Label** | Empty | The name that pickers, cards and notices show, up to 40 characters. |
+| **Id** | Made from the label | What tasks and settings store, as `custom:<id>`. Lowercase letters, digits and dashes, up to 32 characters. |
+| **Base URL** | `http://localhost:8080` | The server's address, on `localhost`, `127.0.0.1` or `::1` only. |
+| **Model name** | The id | What Claude Code sends as the model. |
+| **Small model** | The model name | The model Claude Code uses for quick jobs. |
+| **Context (tokens)** | 32768 | The server's context size. From 8192 to 2,000,000. **Test** checks it against the server. |
+| **Max output tokens** | 4096 | The longest answer in one turn. |
+| **Sessions at once** | 1 | How many sessions can run on the model at the same time, from 1 to 12. They also count toward **Concurrent workers**. |
+| **Profile** | **Automatic** | **Lean** drops Corvid's extras, never a safety rule. **Automatic** is lean below 100,000 tokens of context. |
+| **Extra env** | Empty | Extra environment variables for the model's sessions, one `NAME=value` per line, from an allow list. Never a key or token. |
+
+Corvid keeps the models in `config.json` as a `models` list. Only this card adds or changes them. No agent, tool,
+board message or extension can.
 
 ## Agents and workers
 
@@ -59,6 +94,7 @@ Each message to Corvid uses some of your Claude usage.
 | **Max ping chain** | 3 | How many pings in a row can be caused by pings, from 1 to 10. |
 | **Max agent wake-ups per hour** | 3 | From 1 to 10. Shown while wake-ups are on. |
 | **Goofy agent names** | On | Each agent gets a made-up job title that fits its task. Off, agents get a short plain name. |
+| **Workers keep project memory in CLAUDE.md** | On for new installs; an existing install keeps its setting (off if never changed) | New workers add short lines under "Project notes" in the project's `CLAUDE.md`, in their branch, when their task sets or reveals a convention, a decision or a gotcha that a later task must know. The lines merge with the rest of their work. Off, workers are told nothing about it. Turn it off for benchmark or scratch repos where workers should not write a `CLAUDE.md`. See [Project memory](../tasks-and-agents/start-a-worker.md#project-memory). |
 
 When you type a number above 8 for the first time, Corvid asks you to confirm it. Click **Allow** and the number to
 save it, or **Keep** and the old number to go back. It asks only once.

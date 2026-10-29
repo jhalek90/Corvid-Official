@@ -14,6 +14,8 @@ away from those agents. It cannot stop everything an agent does, so give agents 
 
 - Corvid has no accounts, no server of its own and no telemetry.
 - Claude traffic goes through your own `claude` program, on your own sign-in.
+- A session on one of your own models talks only to that model's server on this computer, with no sign-in. See
+  [Your own models](../tasks-and-agents/your-own-models.md).
 - Voice audio goes to Anthropic's speech service, only while you dictate.
 - The update check runs `git fetch` against the public Corvid repository. See [Updates](../platforms/updates.md).
 
@@ -52,6 +54,9 @@ a script that the agent writes and runs, which can open the file itself.
 
 Only you approve things, and only in Corvid's own dialogs or in Claude Code's permission prompts. A board message, a
 note or an agent's words never count as an approval. This holds even for a message that seems to come from you.
+
+Every rule on this page applies the same way to every model, Claude or your own. A worker on your own model keeps
+the same approvals, deny rules, secret rules and git rules, also in the lean profile.
 
 Text from a web page, a file or another agent can try to steer an agent. Corvid treats it as information. An agent
 can still be misled into doing something you allowed. Keep production connections at the **Strict** safety level.

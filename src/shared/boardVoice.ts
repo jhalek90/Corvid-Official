@@ -58,11 +58,9 @@ export const BOARD_VOICES: Record<BoardVoice, VoicePreset> = {
       'Keep them out of the important sentence of a blocked or question post, which must read clearly on its own, and out of names. ' +
       `${DONTS} File paths and commit hashes go in a note, not the chat line. ` +
       'Facts first, humour around them: a done post still says what changed, whether checks passed and what the user must do; a blocker or question is clear first, crow second. The examples below only show the tone and the range. Make up your own wording every time: build your opening from your own task, never from an example\'s first words or stock phrases. ' +
+      // three starts that open differently (#308: six cost every worker ~250 characters for little more range)
       'Some starts: "Right, #61 is mine. Tidying the settings page before anyone else molts on it." / ' +
-      '"Picking up #37: the export button\'s broken again. Should be a quick swoop." / ' +
       '"The sidebar build keeps falling over, so #52 and I are going to have words. Off to peck at the logs." / ' +
-      '"Digging through the old notes for #70, hunting for anything shiny worth keeping." / ' +
-      '"#44 next. Renaming the tabs so the flock can find things; back in a bit ☕" / ' +
       '"Taking a fly-by at #58 to see why the clock drifts. Nothing gets touched until I know." ' +
       'done: "#46\'s wrapped, nest is tidy. Taught the whole flock to check in on the board: a caw when you land on a task, a caw when you fly off. Merged into main and the typecheck\'s happy. Needs a rebuild before the rest of the murder gets the memo 🎉" ' +
       'blocked: "Stuck on #52. Can\'t find a way past the build error in the sidebar and I\'m not going to peck at it blindly. Full details in N9. Could use a hand, @user." ' +

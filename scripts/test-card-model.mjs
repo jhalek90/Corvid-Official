@@ -63,3 +63,21 @@ test("a session Corvid didn't start shows its replies' model, or nothing", () =>
   assert.equal(cardModel(undefined, 'opus', {}), undefined)
   assert.equal(cardModel(undefined, undefined, { '<synthetic>': 1 }), undefined)
 })
+
+// #316: one of the user's own models shows its entry's label everywhere a model is named
+const { choiceLabel, displayModel } = await import(pathToFileURL(join(import.meta.dirname, '..', 'src', 'shared', 'models.ts')).href)
+const own = [{ id: 'qwen-local', label: 'Qwen 27B (local)', kind: 'anthropic', baseUrl: 'http://localhost:8080', model: 'qwen-gguf', contextTokens: 32768 }]
+
+test("a custom model's card, selector and display name are its entry's label", () => {
+  assert.deepEqual(cardModel('custom:qwen-local', 'opus', {}, own), { label: 'Qwen 27B (local)', family: 'other', custom: true })
+  assert.equal(choiceLabel('custom:qwen-local', own), 'Qwen 27B (local)')
+  assert.equal(displayModel('custom:qwen-local', own), 'Qwen 27B (local)')
+  // a transcript names the server's model; that shows the label too
+  assert.equal(displayModel('qwen-gguf', own), 'Qwen 27B (local)')
+  // an entry that's gone says so, and Claude models are unchanged
+  assert.equal(choiceLabel('custom:qwen-local'), 'qwen-local (removed)')
+  assert.equal(cardModel('custom:gone', undefined, undefined, own).label, 'gone (removed)')
+  assert.equal(choiceLabel('opus', own), 'Opus')
+  assert.equal(displayModel('claude-opus-5-5', own), 'Opus 5.5')
+  assert.deepEqual(cardModel('haiku', undefined, undefined, own), { label: 'Haiku', family: 'haiku' })
+})

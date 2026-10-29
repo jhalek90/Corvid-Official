@@ -1,12 +1,12 @@
 import { app } from 'electron'
 import { mkdirSync, readdirSync, writeFileSync } from 'node:fs'
 import { createHash } from 'node:crypto'
-import { join, relative } from 'node:path'
+import { basename, join, relative } from 'node:path'
 import type { AppConfig } from '@shared/types'
 import { cleanDenyPattern, denyDefaultsFor, nameMatches } from '@shared/secretRules'
 import { normKey } from '@shared/projectList'
 import { getConfig } from './config'
-import { absRule, dataDirCandidates } from './platform'
+import { absRule, customClaudeDir, dataDirCandidates } from './platform'
 
 // Files agents may not read or edit (#91). Every worker and Corvid's assistant gets a generated Claude
 // Code settings file with deny rules, passed with --settings. That flag adds a settings layer on top of
@@ -39,15 +39,24 @@ export const dataFolders = (): string[] => dataFolderRules(app.getPath('userData
 export const claudeConfigRules = (env: NodeJS.ProcessEnv = process.env, platform: string = process.platform): string[] =>
   env.CLAUDE_CONFIG_DIR ? [`${absRule(env.CLAUDE_CONFIG_DIR, platform)}/.credentials.json`] : []
 
+/** The Claude Code config folder for sessions on the user's own models (#314): one per copy, outside its data folder. */
+export const customConfigDir = (): string => customClaudeDir(basename(app.getPath('userData')))
+
+/** The login file there, which should never exist (Corvid puts none in it), denied anyway once there are custom models. */
+export const customConfigRules = (c: AppConfig, platform: string = process.platform): string[] =>
+  c.models?.length ? [`${absRule(customConfigDir(), platform)}/.credentials.json`] : []
+
 /** The patterns in force, before any per-project exception: the defaults left on, the data folder, the user's own. */
 export function denyPatterns(c: AppConfig = getConfig(), platform: string = process.platform): { home: string[]; project: string[] } {
   const off = new Set(c.agentDenyOff ?? [])
   const on = denyDefaultsFor(platform).filter((d) => !off.has(d.pattern))
   const extra = (c.agentDenyExtra ?? []).map(cleanDenyPattern).filter((p): p is string => !!p)
   const login = off.has('~/.claude/.credentials.json') ? [] : claudeConfigRules(process.env, platform)
+  // the custom models' folder isn't the user's login, so switching that default off doesn't open it
+  const custom = customConfigRules(c, platform)
   return {
     // the data folder holds the secrets, connections and backups: it can't be switched off
-    home: [...dataFolderRules(app.getPath('userData'), app.getPath('appData'), platform), ...on.filter((d) => !d.project).map((d) => d.pattern), ...login, ...extra.filter((p) => !p.startsWith('**/'))],
+    home: [...dataFolderRules(app.getPath('userData'), app.getPath('appData'), platform), ...on.filter((d) => !d.project).map((d) => d.pattern), ...login, ...custom, ...extra.filter((p) => !p.startsWith('**/'))],
     project: [...on.filter((d) => d.project).map((d) => d.pattern), ...extra.filter((p) => p.startsWith('**/'))]
   }
 }

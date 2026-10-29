@@ -39,7 +39,8 @@ To add a task with all its details:
 2. Type the title in **What needs doing?**.
 3. Optional: type notes in **Notes, context, acceptance criteria…**. The worker reads them.
 4. Pick the **Column** and the **Project**. A worker needs a project to have a folder to work in.
-5. Optional: pick a **Model**, files to attach, or tasks it is **Blocked by**.
+5. Optional: pick a **Model**, files to attach, or tasks it is **Blocked by**. To start it by itself when those
+   are done, turn on **Start automatically when its blockers are done**. See [Blocked by](blocked-by.md).
 6. Click **Add task**. The card shows in the column you picked.
 
 ## Edit a task

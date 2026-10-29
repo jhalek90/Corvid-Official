@@ -1,9 +1,11 @@
 import { promises as fsp } from 'node:fs'
 import { claudeHome } from './testCopy'
+import { customConfigDir } from './agentDeny'
 import { join } from 'node:path'
 import type { LiveSession } from '@shared/types'
 
-const dir = join(claudeHome(), 'sessions')
+/** Claude Code's live registry, and the one in the custom models' config folder for sessions on the user's own models (#317). */
+const dirs = (): string[] => [join(claudeHome(), 'sessions'), join(customConfigDir(), 'sessions')]
 
 function alive(pid: number): boolean {
   try {
@@ -15,8 +17,13 @@ function alive(pid: number): boolean {
 }
 
 async function read(): Promise<LiveSession[]> {
-  const names = await fsp.readdir(dir).catch(() => [] as string[])
   const out: LiveSession[] = []
+  for (const dir of dirs()) await readDir(dir, out)
+  return out
+}
+
+async function readDir(dir: string, out: LiveSession[]): Promise<void> {
+  const names = await fsp.readdir(dir).catch(() => [] as string[])
   for (const n of names) {
     if (!n.endsWith('.json')) continue
     try {
@@ -37,7 +44,6 @@ async function read(): Promise<LiveSession[]> {
       /* file mid-write */
     }
   }
-  return out
 }
 
 export type Transition = { session: LiveSession; from: string }
@@ -74,10 +80,13 @@ export function watchLive(
 
 /** One session's status straight from its file, not the last poll: for checking an agent is still idle right before typing (#80). */
 export async function freshStatus(pid: number): Promise<{ status: string; statusUpdatedAt?: number } | null> {
-  try {
-    const r = JSON.parse(await fsp.readFile(join(dir, `${pid}.json`), 'utf8'))
-    return r.pid === pid && alive(pid) ? { status: r.status ?? 'idle', statusUpdatedAt: r.statusUpdatedAt } : null
-  } catch {
-    return null
+  for (const dir of dirs()) {
+    try {
+      const r = JSON.parse(await fsp.readFile(join(dir, `${pid}.json`), 'utf8'))
+      return r.pid === pid && alive(pid) ? { status: r.status ?? 'idle', statusUpdatedAt: r.statusUpdatedAt } : null
+    } catch {
+      /* not in this registry */
+    }
   }
+  return null
 }

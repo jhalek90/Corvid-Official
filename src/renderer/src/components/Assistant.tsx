@@ -1,16 +1,19 @@
 import type { ReactNode } from 'react'
 import { CircleStop } from 'lucide-react'
 import type { AssistantSnapshot, AssistantState, Worker, WorkerModel } from '@shared/types'
+import type { CustomModel, CustomModelRef } from '@shared/customModels'
 import { api } from '../api'
 import { useStore } from '../store'
 import { CrowHead, type CrowMood } from './Crow'
-import { fableTitle, useFableNote } from './ModelOptions'
+import { ContextRing } from './CorvidContext'
+import { corvidCanUse, corvidCustomTitle, fableTitle, useFableNote } from './ModelOptions'
+import { effectiveAssistantMode, isCustomModelRef } from '@shared/customModels'
 import { choiceLabel, MODEL_CHOICES } from '@shared/models'
 import { effortLabel } from '@shared/reasoningEffort'
 
 // Corvid used to live in a dock on the right. It now lives on the message board (the user writes to it there,
 // untagged or with "@corvid …"), so this file holds the pieces the dock had that still matter: the Corvid strip at the top of the board
-// (avatar, state, mode, model, Stop); a new conversation is /clear on the board. The Agents view's approvals and its summary line (limits,
+// (avatar, state, context ring, mode, model, Stop); a new conversation is /clear on the board or Clear on the ring. The Agents view's approvals and its summary line (limits,
 // Stop all) are in Approvals.tsx and AgentsSummary.tsx.
 
 const cap = (s: string): string => s[0].toUpperCase() + s.slice(1)
@@ -24,8 +27,8 @@ export function prettyModel(m: string | undefined): string {
   return `${cap(fam)}${ver.length ? ' ' + ver.join('.') : ''}${ctx}`
 }
 
-export function workerModelLabel(m: WorkerModel, claudeDefault?: string): string {
-  return m === 'default' ? `Default (${prettyModel(claudeDefault)})` : choiceLabel(m)
+export function workerModelLabel(m: WorkerModel | CustomModelRef, claudeDefault?: string, models?: readonly CustomModel[]): string {
+  return m === 'default' ? `Default (${prettyModel(claudeDefault)})` : choiceLabel(m, models)
 }
 
 const STATE_LABEL: Record<AssistantState, string> = {
@@ -98,11 +101,15 @@ export function Orb({ state, workers, size = 34 }: { state: AssistantState; work
 
 // ---------- the Corvid strip, at the top of the board ----------
 
-export function CorvidStrip(): ReactNode {
+/** `channel`: the board channel on show, where the context ring's Compact and Clear leave their notices (#326) */
+export function CorvidStrip({ channel }: { channel: string }): ReactNode {
   const a = useStore((s) => s.assistant)
   const config = useStore((s) => s.config)
   const fableNote = useFableNote()
   const busy = corvidBusy(a)
+  // on a custom model (#320) Corvid is always Plan & ask; the saved mode comes back on a Claude model
+  const onCustom = isCustomModelRef(config?.assistantModel)
+  const mode = config && effectiveAssistantMode(config)
   return (
     <div className="cv-strip" data-tour="messages.corvid">
       <div className="cv-row">
@@ -111,6 +118,7 @@ export function CorvidStrip(): ReactNode {
           <span className="cv-name">Corvid</span>
           <span className={`dock-state ${a.state}`}>{STATE_LABEL[a.state]}</span>
         </div>
+        <ContextRing channel={channel} />
         {busy && (
           <button className="btn sm stop" title="Stop Corvid's reply" onClick={() => void api.assistantInterrupt()}>
             <CircleStop size={13} /> Stop
@@ -118,10 +126,15 @@ export function CorvidStrip(): ReactNode {
         )}
         <div className="cv-switches">
           <div className="seg" title="Plan & ask: workers need your approval. Auto: they start right away, within limits. Also /mode on the board.">
-            <button className={config?.assistantMode === 'ask' ? 'on' : ''} onClick={() => void api.setConfig({ assistantMode: 'ask' })} title="Workers need your approval">
+            <button className={mode === 'ask' ? 'on' : ''} onClick={() => void api.setConfig({ assistantMode: 'ask' })} title="Workers need your approval">
               Plan &amp; ask
             </button>
-            <button className={config?.assistantMode === 'auto' ? 'on' : ''} onClick={() => void api.setConfig({ assistantMode: 'auto' })} title="Workers start right away, within limits">
+            <button
+              className={mode === 'auto' ? 'on' : ''}
+              disabled={onCustom}
+              onClick={() => void api.setConfig({ assistantMode: 'auto' })}
+              title={onCustom ? 'While Corvid runs on one of your own models, workers always need your approval' : 'Workers start right away, within limits'}
+            >
               Auto
             </button>
           </div>
@@ -136,6 +149,18 @@ export function CorvidStrip(): ReactNode {
                 {m === 'fable' ? 'Fable' : choiceLabel(m)}
               </button>
             ))}
+            {/* the user's own models (#316): Corvid itself only on those of 64k context and up, experimental (#320) */}
+            {config?.models?.map((m) => (
+              <button
+                key={m.id}
+                className={config.assistantModel === `custom:${m.id}` ? 'on' : ''}
+                disabled={!corvidCanUse(m)}
+                title={corvidCustomTitle(m, config.models)}
+                onClick={() => void api.setConfig({ assistantModel: `custom:${m.id}` })}
+              >
+                {m.label}
+              </button>
+            ))}
           </div>
           {config && config.assistantEffort !== 'default' && (
             <span className="cv-effort" title={`Corvid's effort: ${effortLabel(config.assistantEffort)}. Change it in Settings; it applies from Corvid's next session.`}>
@@ -144,6 +169,15 @@ export function CorvidStrip(): ReactNode {
           )}
         </div>
       </div>
+      {a.customDown && (
+        <div className="cv-down" role="status">
+          <span>{a.customDown}</span>
+          {/* only the user's click changes Corvid's model (#320); nothing switches it on its own */}
+          <button className="btn sm" onClick={() => void api.setConfig({ assistantModel: 'haiku' })} title="Switches Corvid's model to Haiku. Your own model stays in Settings → Models.">
+            Run Corvid on Haiku instead
+          </button>
+        </div>
+      )}
     </div>
   )
 }

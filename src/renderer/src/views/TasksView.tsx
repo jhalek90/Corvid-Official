@@ -2,8 +2,10 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { addToEditor, attachToTask, pastedFiles, TaskFilesBadge, TaskFilesField, useFileDrop } from '../components/TaskAttachments'
 import { releaseStaged, type Staged } from '../components/BoardAttachments'
 import { createPortal } from 'react-dom'
-import { Bot, FolderOpen, Hourglass, Link2, Lock, Plus, Search, Trash2, TriangleAlert, WandSparkles, X, MessageSquare } from 'lucide-react'
+import { Bot, FolderOpen, Hourglass, Link2, Lock, Plus, Search, Trash2, TriangleAlert, WandSparkles, X, MessageSquare, Zap } from 'lucide-react'
 import type { AssistantModel, Task, TaskColumn } from '@shared/types'
+import type { CustomModelRef } from '@shared/customModels'
+import { effectiveAssistantMode } from '@shared/customModels'
 import { choiceLabel } from '@shared/models'
 import { BLOCKER_STATE, blockedTasks, blockerLabel, blockerProblem, MAX_BLOCKERS, notStarted, openBlockers } from '@shared/blockers'
 import { baseName, projectKey } from '@shared/projects'
@@ -256,6 +258,7 @@ function TaskCard({
   onDragEnd: () => void
 }): ReactNode {
   const worker = useStore((s) => s.assistant.workers.find((w) => w.taskId === t.id && w.state === 'running'))
+  const models = useStore((s) => s.config?.models)
   const [removing, setRemoving] = useState(false)
   // files dropped on the card are attached to the task straight away (#187); a card dragged between columns isn't files
   const drop = useFileDrop((files) => void attachToTask(t, files.map((file) => ({ file }))))
@@ -311,9 +314,14 @@ function TaskCard({
             {folderLabel(t)}
           </span>
         )}
+        {t.autoStart && t.column !== 'done' && (
+          <span className="tc-auto" title="Starts automatically when its blockers are done" aria-label="Starts automatically when its blockers are done">
+            <Zap size={11} />
+          </span>
+        )}
         {t.model && (
-          <span className="tc-model" title={`Workers on this task run on ${choiceLabel(t.model)}, not the worker model from Settings`}>
-            {choiceLabel(t.model)}
+          <span className="tc-model" title={`Workers on this task run on ${choiceLabel(t.model, models)}, not the worker model from Settings`}>
+            {choiceLabel(t.model, models)}
           </span>
         )}
         {t.source && t.source !== 'error' && (
@@ -435,7 +443,8 @@ export function BlockChips({ t, waiting = true }: { t: Task; waiting?: boolean }
 /** Does what asking the assistant to handle the task does: start_worker, with the same limits and
  *  "ask"-mode approval. The main process re-checks everything; this only mirrors it for display. */
 function AutomateButton({ t, running }: { t: Task; running: boolean }): ReactNode {
-  const ask = useStore((s) => s.config?.assistantMode !== 'auto')
+  // always ask while Corvid runs on a custom model (#320)
+  const ask = useStore((s) => !s.config || effectiveAssistantMode(s.config) !== 'auto')
   const proposed = useStore((s) => s.assistant.proposals.some((p) => p.taskId === t.id))
   const blocker = useStore((s) => s.assistant.blocker)
   const find = useFinder()
@@ -609,6 +618,10 @@ function BlockedConfirm({ t, open, ask, onStart, onClose }: { t: Task; open: Tas
   )
 }
 
+/** The editor's autoStart switch (#282). */
+const AUTO_START_TIP =
+  'When the last task it is blocked by moves to Done, a worker starts on it, with the same limits as any start (in "ask" mode you get the usual proposal). Turning this on starts nothing by itself, even if its blockers are already done. If every worker slot is taken, it starts when one frees. If usage is over the limit, a board notice says so and you start it yourself.'
+
 export function TaskEditor(): ReactNode {
   const draft = useStore((s) => s.taskEditor)
   const projects = useProjects()
@@ -753,6 +766,23 @@ ${form.notes ?? ''}`} />
           )}
         </div>
         <BlockedByField id={draft.id} value={form.blockedBy} onChange={(blockedBy) => setForm({ ...form, blockedBy })} />
+        <div className="task-autostart" title={AUTO_START_TIP}>
+          <span>Start automatically when its blockers are done</span>
+          <div
+            className={`toggle${form.autoStart ? ' on' : ''}`}
+            role="switch"
+            tabIndex={0}
+            aria-checked={!!form.autoStart}
+            aria-label="Start automatically when its blockers are done"
+            onClick={() => setForm({ ...form, autoStart: !form.autoStart })}
+            onKeyDown={(e) => {
+              if (e.key !== ' ' && e.key !== 'Enter') return
+              e.preventDefault()
+              e.stopPropagation()
+              setForm({ ...form, autoStart: !form.autoStart })
+            }}
+          />
+        </div>
         <TaskFilesField id={draft.id} staged={staged} setStaged={setStaged} />
         {drop.dropping && (
           <div className="mb-drop" aria-hidden>
@@ -802,14 +832,15 @@ function TaskModelSelect({
   onError
 }: {
   id?: number
-  value?: AssistantModel
-  onChange: (m: AssistantModel | undefined) => void
+  value?: AssistantModel | CustomModelRef
+  onChange: (m: AssistantModel | CustomModelRef | undefined) => void
   onError: (e: string) => void
 }): ReactNode {
   const workerModel = useStore((s) => s.config?.workerModel ?? 'default')
+  const models = useStore((s) => s.config?.models)
   const claudeDefault = useStore((s) => s.claudeDefaultModel)
   const [asking, setAsking] = useState(false)
-  const settings = workerModelLabel(workerModel, claudeDefault)
+  const settings = workerModelLabel(workerModel, claudeDefault, models)
   return (
     <select
       className="select"
@@ -817,7 +848,7 @@ function TaskModelSelect({
       disabled={asking}
       title="The model workers on this task run on. Default follows the worker model in Settings."
       onChange={(e) => {
-        const v = (e.target.value || undefined) as AssistantModel | undefined
+        const v = (e.target.value || undefined) as AssistantModel | CustomModelRef | undefined
         if (v !== 'fable' || value === 'fable') return onChange(v)
         setAsking(true)
         void api
@@ -831,7 +862,7 @@ function TaskModelSelect({
       }}
     >
       <option value="">{workerModel === 'default' ? settings : `Default (${settings})`}</option>
-      <ModelOptions />
+      <ModelOptions custom="on" current={value} />
     </select>
   )
 }

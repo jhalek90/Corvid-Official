@@ -626,6 +626,21 @@ export async function launch(session: SessionSummary, mode: LaunchMode, force = 
   }
 }
 
+/** Settings → Models' Set up (#316): Claude Code on one of the user's own models, opened like a new session. */
+export async function setUpModel(id: string): Promise<{ folder: string; left: string[] } | undefined> {
+  try {
+    const { term, folder, left } = await api.setupModel(id)
+    setState((s) => ({
+      terminals: s.terminals.some((t) => t.termId === term.termId) ? s.terminals : [...s.terminals, term],
+      layout: revealTerm(s.layout, term.termId, placement())
+    }))
+    return { folder, left }
+  } catch (e) {
+    toast(String((e as Error).message ?? e), 'error')
+    return undefined
+  }
+}
+
 export async function newSession(cwd: string, title: string): Promise<void> {
   try {
     const term = await api.launch({ mode: 'new', cwd, title })

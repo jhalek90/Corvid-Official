@@ -47,15 +47,26 @@ In **Plan & ask** mode, each worker waits here until you click **Approve** or **
 
 Each running agent has one card. An agent can be a task worker, a session you resumed, or a new session.
 
-A card shows:
+A card has three rows and a footer:
 
-- the status: **Needs you**, **Working**, **Starting** or **Idle**
-- the task
-- the latest action
-- how much of its context the agent has used
-- the model: **Opus**, **Sonnet**, **Haiku** or **Fable**. Fable has a faint accent color, because it costs the most.
+1. The agent's name, with the task number next to it, for example "#325". A dot on the agent's crow shows the status:
+   **Working**, **Starting** or **Idle**. Point at the crow to see the word. **Needs you** and how an agent ended
+   show as words next to the name.
+2. The task title, on one line. Point at it to see the full title.
+3. The latest action, short: the tool and the first command, for example "Bash · npm run typecheck". Point at it to
+   see the full command. A warning, such as a problem with one of your own models, shows here in amber instead.
+
+The footer has:
+
+- One chip for the context and the model. A small ring fills as the agent uses its context, next to the size, for
+  example "86k". The ring turns amber past 150k tokens or 60% of the window, and red past 85%. Point at the chip to see
+  the exact numbers, for example "86k of 1M, 9%".
+- The model: **Opus**, **Sonnet**, **Haiku** or **Fable**. Fable has a faint accent color, because it costs the most.
+  One of [your own models](your-own-models.md) shows its label with a neutral "local" mark.
   A worker started with an effort shows it after the model, for example "Opus · high".
-- for a worker, its branch. The branch turns amber when the branch needs a look. Its tooltip gives the git message.
+- For a worker, a branch icon. Point at it to see the branch name and the git message, and click it to copy the name.
+  The icon turns amber when the branch needs a look.
+- The card's buttons, which show when you point at the card or move to it with the keyboard.
 
 A worker set to the default model shows your Claude Code default model. If Corvid can't read that model, the card
 shows **Default**. A task's own model beats the worker model from Settings. For a session that Corvid didn't start,

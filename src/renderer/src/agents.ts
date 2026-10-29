@@ -100,9 +100,10 @@ function watchSamples(cb: () => void): () => void {
  * Debug: pretend there are `n` more agents, with made-up names and tasks. `states` sets each one's
  * status ('busy', 'idle', 'waiting', 'exited'); agents kept from the last call keep their terminal
  * id, so flipping states doesn't respawn their birds. `restart` gives the listed ones a new id, as a
- * restarted worker gets. `extra` adds to each one's worker, e.g. `[{ branch: 'task-1-x', git: { state: 'kept' } }]`.
+ * restarted worker gets. `extra` adds to each one's worker, e.g. `[{ branch: 'task-1-x', git: { state: 'kept' } }]`, and
+ * `more` to the agent itself, e.g. a made-up session or activity for its card: `[{ s: { context: 86000 }, a: { events: [...] } }]`.
  */
-export function sampleAgents(n: number, states?: AgentStatus[], restart: number[] = [], extra: Partial<Worker>[] = []): void {
+export function sampleAgents(n: number, states?: AgentStatus[], restart: number[] = [], extra: Partial<Worker>[] = [], more: Partial<Agent>[] = []): void {
   const now = Date.now()
   sampleList = Array.from({ length: n }, (_, i) => {
     const old = sampleList[i]
@@ -127,7 +128,8 @@ export function sampleAgents(n: number, states?: AgentStatus[], restart: number[
         clockFrom: now,
         state: status === 'exited' ? 'exited' : 'running',
         ...extra[i]
-      }
+      },
+      ...more[i]
     }
   })
   for (const cb of sampleWatchers) cb()

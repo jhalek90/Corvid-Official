@@ -1,6 +1,7 @@
 import { app } from 'electron'
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { z } from 'zod'
 import type { McpEndpoint, ToolDef } from './mcp'
 
 // Each worker gets its own MCP token on the dashboard's server, holding only the tools Corvid gives
@@ -35,7 +36,7 @@ export function clearStaleGrants(): void {
  * file because node-pty doesn't quote JSON arguments reliably. It holds only the localhost URL and
  * this worker's token.
  */
-export function grantWorker(endpoint: McpEndpoint, workerId: string, parts: (AccessPart | null)[]): { args: string[]; prompt: string; reminder: string } {
+export function grantWorker(endpoint: McpEndpoint, workerId: string, parts: (AccessPart | null)[]): { args: string[]; prompt: string; reminder: string; toolChars: number } {
   const have = parts.filter((p): p is AccessPart => !!p)
   const token = endpoint.addScope(have.flatMap((p) => p.tools))
   mkdirSync(grantDir(), { recursive: true })
@@ -44,9 +45,23 @@ export function grantWorker(endpoint: McpEndpoint, workerId: string, parts: (Acc
   grants.set(workerId, { token, file })
   return {
     args: ['--mcp-config', file, '--allowedTools', have.flatMap((p) => p.allowed.map((t) => `mcp__corvid__${t}`)).join(',')],
-    prompt: have.map((p) => p.prompt).join(' '),
-    reminder: have.flatMap((p) => (p.reminder ? [p.reminder] : [])).join(' ')
+    prompt: have.flatMap((p) => (p.prompt ? [p.prompt] : [])).join(' '),
+    reminder: have.flatMap((p) => (p.reminder ? [p.reminder] : [])).join(' '),
+    toolChars: toolChars(have.flatMap((p) => p.tools))
   }
+}
+
+/** About how many characters `tools` take in a session's context: names, descriptions and input schemas (#318). */
+export function toolChars(tools: ToolDef[]): number {
+  return tools.reduce((sum, t) => {
+    let schema = ''
+    try {
+      schema = JSON.stringify(z.toJSONSchema(z.object(t.input)))
+    } catch {
+      schema = JSON.stringify(Object.keys(t.input))
+    }
+    return sum + t.name.length + t.description.length + schema.length
+  }, 0)
 }
 
 export function revokeWorker(endpoint: McpEndpoint, workerId: string): void {

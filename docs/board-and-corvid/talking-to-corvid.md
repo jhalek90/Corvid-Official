@@ -64,6 +64,11 @@ What happens next depends on the mode in the Corvid strip:
 
 If the task is blocked by other open tasks, Corvid tells you and asks before it starts the worker.
 
+To run a chain of tasks one after the other, ask Corvid for an automatic chain, for example "Make #13 start by itself
+when #12 is done". Corvid sets **Blocked by** and turns on **Start automatically when its blockers are done**. It
+sets the switch only when you ask. See
+[Start automatically when the blockers are done](../tasks-and-agents/blocked-by.md#start-automatically-when-the-blockers-are-done).
+
 See [Plan & ask and Auto](../tasks-and-agents/plan-and-ask-vs-auto.md) and
 [Start a worker](../tasks-and-agents/start-a-worker.md).
 
@@ -72,9 +77,11 @@ See [Plan & ask and Auto](../tasks-and-agents/plan-and-ask-vs-auto.md) and
 The Corvid strip is the bar at the top of the board. From left to right it has:
 
 - Corvid's avatar and its state: **Ready**, **Starting…**, **Thinking…**, **Working…** or **Error**.
+- The context ring, once Corvid has replied in this conversation. See [Corvid's context ring](#corvids-context-ring).
 - **Stop**, while Corvid is busy. It stops Corvid's current reply.
 - The mode switch: **Plan & ask** or **Auto**.
-- The model switch: **Haiku**, **Sonnet**, **Opus** or **Fable**.
+- The model switch: **Haiku**, **Sonnet**, **Opus** or **Fable**, then your own models from **Settings** → **Models**.
+  See [Your own models](../tasks-and-agents/your-own-models.md#corvid-itself-on-your-model).
 - Corvid's effort, for example "high", when it is not **Claude Code default**. Change it in **Settings** →
   **Corvid and models** → **Effort**.
 
@@ -94,10 +101,29 @@ When you pick **Fable**, a dialog asks first:
 Only your click in that dialog switches to Fable. No agent, board message or mention can do it. See
 [Models per task, and Fable](../tasks-and-agents/models-and-fable.md).
 
+## Corvid's context ring
+
+The small ring next to Corvid's state shows how full Corvid's context is. It fills as the conversation grows. It is
+your accent colour, amber past 60% and red past 85%. Point at it to see the numbers, for example "Corvid's context:
+214k of 1M (21%)". The window is 1M tokens on a Claude model, and the entry's context on one of your own models.
+
+The numbers come from Corvid's session transcript, the same as the ctx tag on an agent's card. The ring changes after
+each of Corvid's replies. It does not ask the model. After a compact, the ring is empty until Corvid's next reply.
+
+Claude Code compacts on its own near the end of the window. To do it sooner, or to start over, click the ring:
+
+- **Compact** does the same as typing `/compact` in this channel. Corvid sums up the conversation so far and goes on
+  from the summary. The notice "Conversation compacted." shows under the command. You cannot compact while Corvid is
+  in a turn.
+- **Clear…** does the same as typing `/clear`. A dialog asks first. Click **Clear** to clear now, or **Write a
+  handoff note first**: Corvid gets one message that asks it to write a short handoff note, and the clear follows when
+  that turn ends. While it waits, the ring turns dashed, and its menu has **Don't clear after the note**.
+
 ## Start a new conversation
 
-Corvid keeps one conversation. To make it forget that conversation, type `/clear` in the board's message box. Corvid
-starts fresh with your next message. Board messages stay. There is no confirmation, and it can't be undone.
+Corvid keeps one conversation. To make it forget that conversation, type `/clear` in the board's message box, or
+click the context ring and then **Clear…**. Corvid starts fresh with your next message. Board messages stay: a
+"Conversation cleared" notice marks the point. `/clear` has no confirmation, and it can't be undone.
 
 ## Corvid's personality
 

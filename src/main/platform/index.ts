@@ -4,7 +4,7 @@
 
 export { PLATFORMS, platformOf, notYet, appDataDir, dataDirCandidates, realDataDir, installProfile, installOf, nativeDeps, electronNeedsDownload, ELECTRON_INSTALLER, gitInstallHint, desktopEntryText, autostartEntryPath } from './shared.mjs'
 export type { Platform, InstallProfile } from './shared.mjs'
-export { toNative, pathKey, within, absRule, tempDirs } from './paths'
+export { toNative, pathKey, within, absRule, tempDirs, customClaudeDir } from './paths'
 export { claudeLocations, findClaude, cmpVersion, type ClaudeLocations, type ClaudeProbe } from './claude'
 export { loadLoginEnv, loginEnvReady, loginEnvApplied, parseEnvOutput, mergePath, loginEnvChanges } from './loginEnv'
 export { shellCandidates, shellList, projectShell, loginEnv, onPath, type ShellDef } from './shells'

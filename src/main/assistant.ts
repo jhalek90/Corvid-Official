@@ -4,10 +4,11 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
-import type { AssistantPersonality, AssistantSnapshot, AssistantState, BoardAsk, ChatItem } from '@shared/types'
+import type { AssistantPersonality, AssistantSnapshot, AssistantState, BoardAsk, ChatItem, SessionSummary } from '@shared/types'
 import type { BoardAction, BoardMessage } from '@shared/board'
 import { quietTool, toolLabel } from '@shared/corvidActions'
-import { choiceLabel, launchArgs, MODEL_CHOICES } from '@shared/models'
+import { choiceLabel, MODEL_CHOICES } from '@shared/models'
+import { ASSISTANT_MIN_CONTEXT, effectiveAssistantMode, findCustomModel, isCustomModelRef } from '@shared/customModels'
 import { getConfig, setConfig } from './config'
 import { CLAUDE_NOT_FOUND, resolveClaude } from './claudeBin'
 import type { McpEndpoint } from './mcp'
@@ -17,7 +18,9 @@ import { NOTES_PROMPT } from './noteTools'
 import { assistantBoardPrompt, NO_REPLY, userNameLine } from './boardTools'
 import { SUGGESTION_PREFIX, SUGGESTIONS_NOTE, thesisDose } from '@shared/corvidThesis'
 import { allowAssistant } from './testCopy'
-import { agentSettingsArgs } from './agentDeny'
+import { agentSettingsArgs, customConfigDir } from './agentDeny'
+import { assistantLaunch } from './assistantLaunch'
+import { checkCustomModel } from './customHealth'
 import { listProjects } from './projectStore'
 import { extensionCommands } from '../extensions/sockets/main'
 import { DASHBOARD_COMMANDS, FALLBACK_COMMANDS, findCommand, HEADLESS_BUILTINS, type CommandList, type SlashCommand } from '@shared/slashCommands'
@@ -40,6 +43,21 @@ const TONE: Record<AssistantPersonality, string> = {
     'Be relaxed and conversational, like a friendly colleague: plain everyday words, contractions, the odd light remark. Still keep replies short (the user reads you on the message board) and keep task ids, numbers and facts exact. The casual tone never loosens any of the rules above.'
 }
 
+/** The user's own models (#316) for the prompt: what create_task and update_task can set, or '' when there are none. */
+function ownModelsLine(): string {
+  const list = getConfig().models ?? []
+  if (!list.length) return ''
+  return ` The user's own models (Settings → Models) can be set on a task the same way, as custom:<id>: ${list.map((m) => `custom:${m.id} (${m.label})`).join(', ')}. They use no plan usage. The user can also run you on one with a context of ${ASSISTANT_MIN_CONTEXT.toLocaleString('en-US')} tokens or more (experimental); only the user switches your model, and only the user adds, changes or removes entries, in Settings.`
+}
+
+/** When Corvid runs on one of the user's own models (#320): what that means for it, or '' on a Claude model. */
+function customSelfLine(): string {
+  const c = getConfig()
+  if (!isCustomModelRef(c.assistantModel)) return ''
+  const m = findCustomModel(c.models, c.assistantModel)
+  return ` You are running on ${m?.label ?? "one of the user's own models"}, a model on the user's own server, as an experiment. While you do, the mode is always "ask", whatever the switch says: start_worker only proposes and the user approves every worker in Corvid's own UI. Keep replies and tool calls short; your context is smaller than a Claude model's.`
+}
+
 function systemPrompt(): string {
   const l = getConfig().limits
   return [
@@ -53,10 +71,11 @@ function systemPrompt(): string {
     `Message board: ${assistantBoardPrompt(getConfig().agentPings)} ${userNameLine(getConfig().userName)}`.trimEnd(),
     'The task board has four columns: backlog, next (Up next), doing (In progress) and done. Done holds finished work until the user removes it: a task moves there by itself when the worker on it merges its branch, or when someone moves it (update_task with column done). No worker starts on a task in done. finish_task still deletes a task from any column.',
     'Tasks can be "blocked by" other tasks: only a hint, a task in done no longer blocks anything, the user can always start anything. If start_worker says a task has open blockers, tell the user which ones and their state and ask whether to start anyway. Call it again with override_blockers: true only after the user has said yes in their reply; never decide that yourself.',
+    'auto_start on a task (create_task, update_task) makes a worker start on it by itself when its last blocker moves to done, within the same limits; set it only when the user asks for an automatic chain.',
     'Only start workers when the user asks for work to be done. Start one per task; don\'t start several unless asked. Don\'t complete or discard tasks unless the user says so.',
     `Refer to tasks as #id. ${TONE[getConfig().assistantPersonality] ?? TONE.default}`,
-    `The mode is "${getConfig().assistantMode}". In "ask" mode start_worker only proposes; tell the user to approve it under "Awaiting your approval" at the top of the Agents view.`,
-    `You are running on ${choiceLabel(getConfig().assistantModel)}. New workers run on ${getConfig().workerModel === 'default' ? "the user's Claude Code default model" : choiceLabel(getConfig().workerModel)}. The models to choose from are ${MODEL_CHOICES.map(choiceLabel).join(', ')}; Fable costs the most and the user confirms it in a dialog. The user can change either with the Corvid strip at the top of the message board (or in Settings, or /model); you can't change them yourself, but tell them where they are if asked. The effort Claude Code runs at, for you and for new workers, is set only in Settings (Effort and Worker effort), default Claude Code's own. A task can have its own model, which beats the worker model for its workers: create_task and update_task can set Haiku, Sonnet or Opus (or default) when the user asks; only the user can put a task on Fable, in the task's editor.`,
+    `The mode is "${effectiveAssistantMode(getConfig())}". In "ask" mode start_worker only proposes; tell the user to approve it under "Awaiting your approval" at the top of the Agents view.${customSelfLine()}`,
+    `You are running on ${choiceLabel(getConfig().assistantModel, getConfig().models)}. New workers run on ${getConfig().workerModel === 'default' ? "the user's Claude Code default model" : choiceLabel(getConfig().workerModel, getConfig().models)}. The models to choose from are ${MODEL_CHOICES.map((m) => choiceLabel(m)).join(', ')}; Fable costs the most and the user confirms it in a dialog. The user can change either with the Corvid strip at the top of the message board (or in Settings, or /model); you can't change them yourself, but tell them where they are if asked. The effort Claude Code runs at, for you and for new workers, is set only in Settings (Effort and Worker effort), default Claude Code's own. A task can have its own model, which beats the worker model for its workers: create_task and update_task can set Haiku, Sonnet or Opus (or default) when the user asks; only the user can put a task on Fable, in the task's editor.${ownModelsLine()}`,
     `Your personality is "${getConfig().assistantPersonality}". The user can change it in Settings; you can't change it yourself.`,
     thesisDose('full'),
     `Agents on other projects may end their done post with one line starting "${SUGGESTION_PREFIX}". The app collects those lines into the note "${SUGGESTIONS_NOTE}" (task, project, date; exact duplicates skipped). Raise a suggestion only when the user asks, or when the same one has come from more than one task; never turn one into a task on your own; keep that note tidy and merge near-duplicates only when the user asks. Never post about suggestions on your own.`
@@ -64,6 +83,8 @@ function systemPrompt(): string {
 }
 
 let proc: ChildProcessWithoutNullStreams | null = null
+/** the model `proc` was started with: a model change applies from the next session */
+let procModel = ''
 let endpoint: McpEndpoint | null = null
 let state: AssistantState = 'offline'
 let chat: ChatItem[] = []
@@ -97,11 +118,27 @@ export function initAssistant(e: McpEndpoint, onSnapshot: (s: AssistantSnapshot)
 }
 
 export function snapshot(): AssistantSnapshot {
-  return { state, chat, workers: workers.listWorkers(), proposals: workers.listProposals(), blocker: workers.knownBlocker() ?? undefined, lastTurn, liveQuota, boardAsks: asks, commands: commandList() }
+  return { state, chat, workers: workers.listWorkers(), proposals: workers.listProposals(), blocker: workers.knownBlocker() ?? undefined, lastTurn, liveQuota, boardAsks: asks, commands: commandList(), ...(downReason ? { customDown: downReason } : {}), ...ownContext() }
 }
+
+// Corvid's context ring (#326): the indexer's summary of Corvid's own transcript, the one an agent card's ctx tag reads
+let own: { id: string; context: number } | undefined
+
+/** One of Corvid's own sessions, as the indexer summed it up; only the current one counts. */
+export function sawOwnSession(s: SessionSummary): void {
+  if (s.id !== getConfig().assistantSessionId || !s.peakContext) return
+  if (own?.id === s.id && own.context === s.context) return
+  own = { id: s.id, context: s.context }
+  changed()
+}
+
+const ownContext = (): { context?: number } => (own && own.id === getConfig().assistantSessionId ? { context: own.context } : {})
 
 /** The user's latest message: what the assistant is acting on now. The notes tools check it before
  *  the assistant changes a note the user wrote. */
+/** The model the assistant's session runs on while it runs, else undefined (#315: it counts toward a custom model's cap). */
+export const runningModel = (): string | undefined => (proc ? procModel : undefined)
+
 export function currentRequest(): string {
   for (let i = chat.length - 1; i >= 0; i--) {
     const c = chat[i]
@@ -173,6 +210,17 @@ export function note(text: string, tone: 'info' | 'warn' | 'error' = 'info'): vo
 /** The latest error note, so a board message that failed can say why. */
 let lastError = ''
 
+/** Why Corvid couldn't start on its custom model (#320), shown in the strip beside "Run Corvid on Haiku instead". */
+let downReason: string | undefined
+
+/** Corvid's custom model can't run now: offline with the reason, and nothing starts. Only the user's click switches. */
+function customDown(reason: string): false {
+  downReason = reason
+  note(`Corvid is offline: ${reason}`, 'warn')
+  setState('offline')
+  return false
+}
+
 async function start(): Promise<boolean> {
   // a test copy runs no assistant unless the test asks (DASH_TEST_ASSISTANT=1), and then on a fresh session (#85)
   if (!allowAssistant()) {
@@ -186,6 +234,26 @@ async function start(): Promise<boolean> {
     return false
   }
   const cfg = getConfig()
+  const launch = assistantLaunch(cfg, process.env, customConfigDir())
+  if ('problem' in launch) return customDown(launch.problem)
+  if (launch.custom) {
+    // Corvid on one of the user's own models (#320, experimental): the same checks as a worker on it, never a session
+    const m = launch.custom
+    const max = m.maxRunning ?? 1
+    if (workers.customRunning(cfg.assistantModel) >= max)
+      return customDown(`${m.label} already has ${max} of ${max} sessions running, so Corvid can't start on it.`)
+    setState('starting')
+    const h = await checkCustomModel(m)
+    if (!h.ok)
+      return customDown(
+        h.reason === 'down'
+          ? `${h.message} Start its server, then send your message again.`
+          : `${h.message} Start the server with a context of at least ${m.contextTokens.toLocaleString('en-US')} (-c), or pick another model for Corvid.`
+      )
+    // a proc started while the check waited (a second message) wins; this start stops here
+    if (proc) return true
+  }
+  downReason = undefined
   const mcp = JSON.stringify({
     mcpServers: { dashboard: { type: 'http', url: endpoint.url, headers: { Authorization: `Bearer ${endpoint.token}` } } }
   })
@@ -195,8 +263,8 @@ async function start(): Promise<boolean> {
     '--output-format', 'stream-json',
     '--verbose',
     '--include-partial-messages',
-    // the model and effort (#238); an effort change, like a model change, applies from the next session
-    ...launchArgs(cfg.assistantModel, cfg.assistantEffort),
+    // the model, and for a Claude model the effort (#238, assistantLaunch.ts); a change applies from the next session
+    ...launch.args,
     '--mcp-config', mcp,
     '--strict-mcp-config',
     '--tools', 'Read', 'Glob', 'Grep',
@@ -207,12 +275,10 @@ async function start(): Promise<boolean> {
   ]
   if (cfg.assistantSessionId && !resumeFailed) args.push('--resume', cfg.assistantSessionId)
 
-  // Runs on the subscription login; a stray API key in the environment would take precedence.
-  const env = { ...process.env }
-  delete env.ANTHROPIC_API_KEY
   setState('starting')
-  const child = spawn(bin.path, args, { cwd: assistantDir(), env, windowsHide: true })
+  const child = spawn(bin.path, args, { cwd: assistantDir(), env: launch.env, windowsHide: true })
   proc = child
+  procModel = cfg.assistantModel
   lastCumulativeCost = 0
   let buf = ''
   let stderr = ''
@@ -594,6 +660,7 @@ export function reset(): void {
   chat = []
   streamItem = null
   lastTurn = undefined
+  own = undefined
   resumeFailed = false
   setConfig({ assistantSessionId: undefined })
   setState('offline')
@@ -603,6 +670,11 @@ export function reset(): void {
 
 /** Restart so model/mode/personality/limit changes reach the system prompt. */
 export function reload(): void {
+  // a model change gets a fresh try, so the old reason doesn't stay up
+  if (downReason) {
+    downReason = undefined
+    changed()
+  }
   if (!proc) return
   const p = proc
   proc = null

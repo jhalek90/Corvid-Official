@@ -1,6 +1,6 @@
 import { parentPort, workerData } from 'node:worker_threads'
 import { promises as fsp, watch, existsSync, mkdirSync, type FSWatcher } from 'node:fs'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import type {
   LiveTokens,
   MinuteBucket,
@@ -11,15 +11,32 @@ import type {
   TranscriptEntry,
   UsageStats
 } from '@shared/types'
-import { addTokens, emptyTokens, estimateCost } from '@shared/models'
+import { addTokens, emptyTokens, estimateCost, totalTokens } from '@shared/models'
 import { applyRecord, finalize, localDay, newState, parseLine, readLines, type SessionState } from './parse'
 
 interface Init {
   projectsRoot: string
+  /** the projects folder of the custom models' Claude config folder (#317): sessions there are local, with no plan usage */
+  localRoot?: string
   cacheDir: string
 }
 
-const { projectsRoot, cacheDir } = workerData as Init
+interface Root {
+  dir: string
+  local: boolean
+  watcher: FSWatcher | null
+  /** No projects folder yet (Claude Code not installed or never run, or no local session yet): the safety-net poll
+   *  starts the watch once it appears, instead of a failed watch and a stack trace at every start (#178). */
+  waiting: boolean
+}
+
+const { projectsRoot, localRoot, cacheDir } = workerData as Init
+const roots: Root[] = [
+  { dir: projectsRoot, local: false, watcher: null, waiting: false },
+  ...(localRoot ? [{ dir: localRoot, local: true, watcher: null, waiting: false }] : [])
+]
+/** How far back the Usage page's line per local model counts. */
+const LOCAL_DAYS = 7
 const CACHE_VERSION = 6
 /** Activity is only streamed for sessions touched this recently. */
 const ACTIVITY_WINDOW = 6 * 3600_000
@@ -80,7 +97,7 @@ function textPath(id: string): string {
   return join(textDir, `${id}.txt`)
 }
 
-async function parseSession(projectDir: string, id: string, file: string): Promise<SessionState | null> {
+async function parseSession(projectDir: string, id: string, file: string, local: boolean): Promise<SessionState | null> {
   let stat
   try {
     stat = await fsp.stat(file)
@@ -93,7 +110,7 @@ async function parseSession(projectDir: string, id: string, file: string): Promi
     return st
   }
   if (fresh) {
-    st = newState(id, file, projectDir)
+    st = newState(id, file, projectDir, local)
     textCache.delete(id)
     await fsp.rm(textPath(id), { force: true })
   }
@@ -103,7 +120,8 @@ async function parseSession(projectDir: string, id: string, file: string): Promi
 
   const pending: string[] = []
   const sink = {
-    onUsage: minuteSink,
+    // the live minute chart is plan usage; a local session's tokens stay out of it
+    onUsage: local ? undefined : minuteSink,
     onText: (role: 'u' | 'a', ts: number, text: string) => {
       pending.push(`${role}${US}${ts}${US}${text.replaceAll(RS, ' ').replaceAll(US, ' ')}${RS}`)
     }
@@ -115,7 +133,7 @@ async function parseSession(projectDir: string, id: string, file: string): Promi
   })
 
   // Subagent transcripts: tokens count toward the parent session, tool calls feed its activity.
-  const subDir = join(projectsRoot, projectDir, id, 'subagents')
+  const subDir = join(dirname(file), id, 'subagents')
   if (existsSync(subDir)) {
     const names = await fsp.readdir(subDir).catch(() => [] as string[])
     for (const name of names.filter((n) => n.endsWith('.meta.json'))) {
@@ -152,14 +170,16 @@ async function parseSession(projectDir: string, id: string, file: string): Promi
   return state
 }
 
-async function listSessionFiles(): Promise<{ projectDir: string; id: string; file: string }[]> {
-  const out: { projectDir: string; id: string; file: string }[] = []
-  const dirs = await fsp.readdir(projectsRoot, { withFileTypes: true }).catch(() => [])
-  for (const d of dirs) {
-    if (!d.isDirectory()) continue
-    const names = await fsp.readdir(join(projectsRoot, d.name)).catch(() => [] as string[])
-    for (const n of names) {
-      if (n.endsWith('.jsonl')) out.push({ projectDir: d.name, id: n.slice(0, -6), file: join(projectsRoot, d.name, n) })
+async function listSessionFiles(): Promise<{ projectDir: string; id: string; file: string; local: boolean }[]> {
+  const out: { projectDir: string; id: string; file: string; local: boolean }[] = []
+  for (const root of roots) {
+    const dirs = await fsp.readdir(root.dir, { withFileTypes: true }).catch(() => [])
+    for (const d of dirs) {
+      if (!d.isDirectory()) continue
+      const names = await fsp.readdir(join(root.dir, d.name)).catch(() => [] as string[])
+      for (const n of names) {
+        if (n.endsWith('.jsonl')) out.push({ projectDir: d.name, id: n.slice(0, -6), file: join(root.dir, d.name, n), local: root.local })
+      }
     }
   }
   return out
@@ -173,7 +193,7 @@ async function fullScan(): Promise<void> {
   for (const f of files) {
     seen.add(f.id)
     try {
-      await parseSession(f.projectDir, f.id, f.file)
+      await parseSession(f.projectDir, f.id, f.file, f.local)
     } catch (e) {
       console.error('[indexer] failed', f.file, e)
     }
@@ -208,31 +228,29 @@ function summaries(): SessionSummary[] {
 // ---------- live updates ----------
 
 const pendingFiles = new Map<string, NodeJS.Timeout>()
-let watcher: FSWatcher | null = null
-/** No projects folder yet (Claude Code not installed or never run): the safety-net poll starts the watch once it
- *  appears, instead of a failed watch and a stack trace at every start (#178). */
-let waitingForFolder = false
 
-function startWatch(): void {
-  waitingForFolder = !existsSync(projectsRoot)
-  if (waitingForFolder) {
-    console.log(`[indexer] ${projectsRoot} doesn't exist yet; watching it once it does`)
+function startWatch(root: Root): void {
+  const first = !root.waiting
+  root.waiting = !existsSync(root.dir)
+  if (root.waiting) {
+    // the local root only appears once a custom model has run, so it waits quietly
+    if (first && !root.local) console.log(`[indexer] ${root.dir} doesn't exist yet; watching it once it does`)
     return
   }
   try {
-    watcher = watch(projectsRoot, { recursive: true }, (_evt, filename) => {
+    root.watcher = watch(root.dir, { recursive: true }, (_evt, filename) => {
       if (!filename || !filename.endsWith('.jsonl')) return
       const parts = filename.split(/[\\/]/)
       if (parts.length < 2) return
       const projectDir = parts[0]
       const id = parts.length === 2 ? parts[1].slice(0, -6) : parts[1]
-      const key = `${projectDir}/${id}`
+      const key = `${root.dir}/${projectDir}/${id}`
       clearTimeout(pendingFiles.get(key))
       pendingFiles.set(
         key,
         setTimeout(() => {
           pendingFiles.delete(key)
-          void updateOne(projectDir, id)
+          void updateOne(root, projectDir, id)
         }, 350)
       )
     })
@@ -241,9 +259,9 @@ function startWatch(): void {
   }
 }
 
-async function updateOne(projectDir: string, id: string): Promise<void> {
-  const file = join(projectsRoot, projectDir, `${id}.jsonl`)
-  const st = await parseSession(projectDir, id, file).catch(() => null)
+async function updateOne(root: Root, projectDir: string, id: string): Promise<void> {
+  const file = join(root.dir, projectDir, `${id}.jsonl`)
+  const st = await parseSession(projectDir, id, file, root.local).catch(() => null)
   if (!st) return
   if (!st.summary.junk) {
     post({ type: 'updated', sessions: [st.summary] })
@@ -270,7 +288,7 @@ function liveTokens(): LiveTokens {
   let sessions = 0
   for (const st of states.values()) {
     const day = st.daily[today]
-    if (!day) continue
+    if (!day || st.summary.local) continue
     sessions++
     for (const [fam, b] of Object.entries(day)) {
       addTokens(tot, b)
@@ -294,10 +312,29 @@ function computeStats(): UsageStats {
   const projCut = localDay(now.getTime() - 29 * 86400_000)
   const projects = new Map<string, { name: string; cwd: string; output: number; costUsd: number; sessions: number }>()
   const totals = { sessions: 0, costUsd: 0, output: 0, messages: 0 }
+  const localCut = localDay(now.getTime() - (LOCAL_DAYS - 1) * 86400_000)
+  const local = new Map<string, { model: string; tokens: number; sessions: number }>()
 
   for (const st of states.values()) {
     const s = st.summary
     if (s.junk) continue
+    if (s.local) {
+      // its own line per model, never in the plan figures (#317); daily is keyed by model for local sessions
+      const counted = new Set<string>()
+      for (const [date, models] of Object.entries(st.daily)) {
+        if (date < localCut) continue
+        for (const [model, b] of Object.entries(models)) {
+          const l = local.get(model) ?? { model, tokens: 0, sessions: 0 }
+          l.tokens += totalTokens(b)
+          if (!counted.has(model)) {
+            l.sessions++
+            counted.add(model)
+          }
+          local.set(model, l)
+        }
+      }
+      continue
+    }
     totals.sessions++
     totals.costUsd += s.costUsd
     totals.output += s.tokens.output
@@ -327,7 +364,8 @@ function computeStats(): UsageStats {
     }
   }
   const topProjects = [...projects.values()].sort((a, b) => b.costUsd - a.costUsd).slice(0, 8)
-  return { daily, heatmap, heatmapDays: HEAT_DAYS, topProjects, totals }
+  const localList = [...local.values()].filter((l) => l.tokens > 0).sort((a, b) => b.tokens - a.tokens)
+  return { daily, heatmap, heatmapDays: HEAT_DAYS, topProjects, totals, local: localList }
 }
 
 function pushStats(): void {
@@ -347,14 +385,14 @@ setInterval(() => statsDirty && pushStats(), 5000)
 
 // Safety net for missed watch events (and deletions by Claude's cleanup).
 setInterval(async () => {
-  if (waitingForFolder && existsSync(projectsRoot)) startWatch()
+  for (const root of roots) if (root.waiting && existsSync(root.dir)) startWatch(root)
   const files = await listSessionFiles()
   const seen = new Set(files.map((f) => f.id))
   const changed: SessionSummary[] = []
   for (const f of files) {
     const before = states.get(f.id)
     const prev = before ? before.summary.sizeBytes : -1
-    const st = await parseSession(f.projectDir, f.id, f.file).catch(() => null)
+    const st = await parseSession(f.projectDir, f.id, f.file, f.local).catch(() => null)
     if (st && st.summary.sizeBytes !== prev && !st.summary.junk) changed.push(st.summary)
   }
   for (const st of states.values()) {
@@ -446,8 +484,8 @@ void (async () => {
     post({ type: 'sessions', sessions: summaries() })
     post({ type: 'activity', items: recentActivity(), replace: true })
   }
-  startWatch()
+  for (const root of roots) startWatch(root)
   await fullScan()
 })()
 
-process.on('exit', () => watcher?.close())
+process.on('exit', () => roots.forEach((r) => r.watcher?.close()))

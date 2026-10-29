@@ -88,6 +88,12 @@ export function shortDose(suggestionsOn: boolean, md = registered): string {
   return `About Corvid, the dashboard that started you: ${threeSentences(md)} ${suggestRule(suggestionsOn, md)}`
 }
 
+/** The three sentences only, for a lean worker on any project, the Corvid project too (#318, N175 decision 3). */
+export function leanDose(md = registered): string {
+  if (!md) return ''
+  return `About Corvid, the dashboard that started you: ${threeSentences(md)}`
+}
+
 /** The dose for one agent: full on the user's copy of Corvid, short elsewhere, nothing for a neutral prompt. */
 export function thesisDose(dose: ThesisDose, suggestionsOn = true, md = registered): string {
   if (dose === 'full') return fullDose(md)

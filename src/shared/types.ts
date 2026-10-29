@@ -4,6 +4,8 @@ import type { BoardVoice } from './boardVoice'
 import type { WelcomeMode } from './welcome'
 import type { BoardAttachment } from './board'
 import type { ReasoningEffort, ReasoningEffortSetting } from './reasoningEffort'
+import type { WorkerPermissionMode } from './permissionMode'
+import type { CustomModel, CustomModelRef } from './customModels'
 
 /** Work/Hobby, no longer shown or set (#82); kept only to type the values older files still hold. */
 export type ProjectTag = 'work' | 'hobby'
@@ -58,6 +60,8 @@ export interface SessionSummary {
   deleted: boolean
   /** no assistant turns at all, e.g. scripted `claude /usage` polls */
   junk: boolean
+  /** a session on one of the user's own models (#317), from the custom config folder: no plan usage and no cost */
+  local?: boolean
 }
 
 export type LiveStatus = 'busy' | 'idle' | 'waiting' | 'blocked' | string
@@ -114,6 +118,8 @@ export interface UsageStats {
   heatmapDays: number
   topProjects: { name: string; cwd: string; output: number; costUsd: number; sessions: number }[]
   totals: { sessions: number; costUsd: number; output: number; messages: number }
+  /** sessions on the user's own models (#317), kept out of every figure above: tokens per transcript model, last 7 days */
+  local: { model: string; tokens: number; sessions: number }[]
 }
 
 export interface ActivityEvent {
@@ -227,6 +233,9 @@ export interface AppConfig {
   agentDrafts?: boolean
   /** "Agents may suggest Corvid improvements" (#202): one "Corvid could:" line in a done post; undefined counts as on */
   agentSuggestions?: boolean
+  /** "Workers keep project memory in CLAUDE.md" (#308): a short rule in the worker's system line; undefined counts as off,
+   * and a new install's first config.json has it as true (#325) */
+  workerProjectMemory?: boolean
   /** "Show suggestion chips under the message box" (#206): chips picked from what's going on; undefined counts as on */
   boardChips?: boolean
   /** the page size of long connector results, in characters (#104); undefined: 20,000 */
@@ -236,15 +245,21 @@ export interface AppConfig {
   /** folders whose subfolders make up the archive; empty = derived from session history */
   projectRoots: string[]
   assistantMode: AssistantMode
-  assistantModel: AssistantModel
+  /** a Claude choice, or custom:<id> for one of `models` (#313); a custom:<id> whose entry is gone is kept, not reset */
+  assistantModel: AssistantModel | CustomModelRef
   /** the reasoning effort Corvid runs at (#238); 'default' passes nothing, so Claude Code's own default applies */
   assistantEffort: ReasoningEffortSetting
   /** the model the extension scan's classifier runs on (#96); haiku when unset, to keep scans cheap */
   scanModel?: AssistantModel
   assistantPersonality: AssistantPersonality
-  workerModel: WorkerModel
+  /** 'default', a Claude choice, or custom:<id> for one of `models` (#313); kept even when its entry is gone */
+  workerModel: WorkerModel | CustomModelRef
+  /** the user's own model entries (#313, customModels.ts); absent = none, and Corvid behaves as it always has */
+  models?: CustomModel[]
   /** the reasoning effort new workers run at (#238); 'default' passes nothing */
   workerEffort: ReasoningEffortSetting
+  /** the Claude Code permission mode new workers start in (#306); 'default' passes nothing, 'acceptEdits' lets file edits through */
+  workerPermissionMode: WorkerPermissionMode
   /** the user's name on the board, typed in Settings ("Your name"); '' shows as "user", which always addresses them too */
   userName: string
   /** give spawned agents goofy job-title names ("Senior Pixel Plumber"); off = plain ones ("Text Selector Agent") */
@@ -452,8 +467,11 @@ export interface Task {
   source?: string
   /** tasks this one should wait for, a soft hint only (blockers.ts); ids of deleted tasks are ignored */
   blockedBy?: number[]
-  /** the model workers on this task run on (#136); unset = the worker model from Settings */
-  model?: AssistantModel
+  /** start a worker on it as soon as every task it is blocked by is done (#282, autoStart.ts); absent = off */
+  autoStart?: boolean
+  /** the model workers on this task run on (#136); unset = the worker model from Settings. custom:<id> picks one of
+   *  the user's own models (#313) and is kept even when its entry is gone */
+  model?: AssistantModel | CustomModelRef
   /** files the user attached in the task editor or on its card (#187), copied into task-files/t<id>/ in the data folder.
    *  Only the window adds or removes them: the task tools can't, and agents read them through read_task_file. */
   attachments?: BoardAttachment[]
@@ -511,7 +529,7 @@ export interface Worker {
   agentName?: string
   /** its random crow, made by the dashboard when it started (agentAvatar.ts) */
   avatar?: CrowLook
-  model: WorkerModel
+  model: WorkerModel | CustomModelRef
   /** the reasoning effort it was started with (#238); absent: Claude Code's default */
   effort?: ReasoningEffort
   termId: string
@@ -544,7 +562,13 @@ export interface Worker {
   closeHeld?: string
   /** the user pressed Keep open: no countdown until it works and posts done again */
   keepOpen?: boolean
+  /** a custom-model worker's model went wrong while it ran (#319): what the card shows, the latest one */
+  modelTrouble?: { kind: ModelTroubleKind; message: string; at: number }
 }
+
+/** What the run-time watch on a custom-model worker found (#319): its model out of context, its server gone, another
+ *  API error, or a Claude Code prompt that blocks it (trust, first-run set-up, an update notice). */
+export type ModelTroubleKind = 'context' | 'down' | 'api' | 'trust' | 'onboarding' | 'update'
 
 export interface Proposal {
   id: string
@@ -579,6 +603,11 @@ export interface AssistantSnapshot {
   boardAsks: BoardAsk[]
   /** the slash commands the board box offers (#71); missing until main sends a snapshot */
   commands?: import('./slashCommands').CommandList
+  /** why Corvid couldn't start on its custom model (#320); the strip shows it with "Run Corvid on Haiku instead" */
+  customDown?: string
+  /** the context its current session's latest reply was sent with, from its transcript like an agent card's ctx tag
+   *  (#326); 0 just after a compact; missing before the conversation's first reply */
+  context?: number
 }
 
 /** One of the user's @corvid board messages on its way to Corvid. Answered ones are dropped: the reply is on the board. */

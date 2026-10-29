@@ -442,7 +442,7 @@ function BoardPanel({
           )}
         </div>
       )}
-      <CorvidStrip />
+      <CorvidStrip channel={channel} />
       <ChannelBar board={board} channel={channel} onChannel={setChannel} />
       <ElsewhereForYou board={board} channel={channel} onChannel={setChannel} />
 

@@ -87,6 +87,10 @@ time or with **Remove all**, each with an Undo.
   usage is high.
 - **A model per task** (Haiku, Sonnet, Opus or Fable, with the same Fable confirmation), "blocked by" hints between
   tasks, and finished agents that close themselves after their done post (never with unmerged work).
+- **Your own local models (experimental).** Next to Claude models, a task can run on a model server on your own
+  computer that speaks Anthropic's Messages API, with no plan usage. It's tested with a Qwen model on llama.cpp's
+  `llama-server`; other local models and servers should work but are untested. Corvid itself can run on one too, as
+  an experiment. See [Your own models](docs/tasks-and-agents/your-own-models.md).
 - **Files on a task**: attach them in the task editor with the paperclip, by dropping them on the editor or a card,
   or by pasting a screenshot. Corvid keeps its own copies on this PC, and the agent that takes the task is told
   about them and can read them (only its own task's).
