@@ -11,3 +11,4 @@ Test the app only with `npm run test-instance`; never point anything at the real
 
 - To turn a setting on for new installs only, write it into the first config.json (the no-file branch of `getConfig` in `src/main/config.ts`, as `workerProjectMemory` does), never via `DEFAULTS`: that would flip what "absent" means for existing copies.
 - To see agent cards in a test copy (it starts no workers), eval `__dash.sampleAgents(n, states, [], workerExtras, agentExtras)`; agentExtras gives a card a made-up session (`s`) or activity (`a`). Start the copy with `--env DASH_SHOT_DIR=<dir>` to get a PNG of the Agents view.
+- `npm test` also runs on Linux and macOS in the public CI: tests that check paths must expect the host platform's layout (or pass `platform` explicitly), never Windows-only bits like `%LOCALAPPDATA%`.

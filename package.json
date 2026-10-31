@@ -1,6 +1,6 @@
 {
   "name": "corvid",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "A desktop home for your Claude Code agents: hand them tasks, watch them work, and talk to them on one board.",
   "repository": {
     "type": "git",

@@ -8,6 +8,11 @@ changes reached the public `main`, so you can see what an update brings in since
 Internal changes (tests, refactors, CI) are left out unless they change what you see. The history starts at the
 first public commit; earlier work lives in the maintainer's private repository.
 
+## 0.2.1 (2026-10-31)
+
+- **Tests on Linux and macOS**: `npm test` passes on Linux and macOS again. One test expected Windows paths for the
+  login rule of a custom model's config folder; Corvid itself was not affected.
+
 ## 0.2.0 (2026-10-29)
 
 Tasks and workers:

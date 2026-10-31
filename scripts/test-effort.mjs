@@ -14,7 +14,7 @@
 
 import { register } from 'node:module'
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { homedir, tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { test } from 'node:test'
@@ -329,8 +329,11 @@ test("the custom folder's login file is denied once there are models, and only t
   assert.deepEqual(custom({ models: [] }), [])
   const rule = custom({ models: [qwen] })
   assert.equal(rule.length, 1)
-  assert.ok(rule[0].endsWith('/data/claude-custom/.credentials.json'), rule[0])
-  assert.ok(rule[0].includes('/local/'), rule[0])
+  // the folder per platform (LOCALAPPDATA and XDG_STATE_HOME point into tmp above; macOS has no variable for it),
+  // in Claude Code's //-anchored form: //c/... on Windows, //tmp/... or //Users/... elsewhere
+  const dir = { win32: join(tmp, 'local', 'data', 'claude-custom'), darwin: join(homedir(), 'Library', 'Application Support', 'data-claude-custom') }[process.platform] ?? join(tmp, 'state', 'data', 'claude-custom')
+  const abs = process.platform === 'win32' ? '//' + dir.replace(/\\/g, '/').replace(/^([A-Za-z]):/, (_m, d) => d.toLowerCase()) : '/' + dir
+  assert.equal(rule[0], `${abs}/.credentials.json`)
   // switching off the ~/.claude login default doesn't open it: it isn't the user's login
   assert.deepEqual(custom({ models: [qwen], agentDenyOff: ['~/.claude/.credentials.json'] }), rule)
 })
